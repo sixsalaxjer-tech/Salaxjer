@@ -39,6 +39,13 @@ rather than guessed at.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the layer breakdown and rationale.
 
+## Live deployment
+
+Every push to `main` automatically builds and deploys to **GitHub Pages** via
+[`.github/workflows/deploy-pages.yml`](./.github/workflows/deploy-pages.yml). See
+[`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) for how the base path and routing are configured for
+subpath hosting, and how to point the build at a different host later.
+
 ## Getting started
 
 ```bash

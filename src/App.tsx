@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { HouseholdProvider, useHousehold } from '@/app/providers/HouseholdProvider'
 import { ToastProvider } from '@/app/providers/ToastProvider'
 import { AppLayout } from '@/app/layout/AppLayout'
@@ -79,12 +79,12 @@ function Gate() {
 
 export function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <ToastProvider>
         <HouseholdProvider>
           <Gate />
         </HouseholdProvider>
       </ToastProvider>
-    </BrowserRouter>
+    </HashRouter>
   )
 }

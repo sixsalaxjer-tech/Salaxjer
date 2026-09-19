@@ -5,7 +5,13 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Family Expense PWA — Vite build configuration.
 // Service worker strategy follows spec section 14.2:
 // App Shell = Cache First, Static Assets = Stale While Revalidate, Local Data = IndexedDB only (never cached by the SW).
+//
+// `base` is set for GitHub Pages project-site hosting (served under /<repo-name>/, not domain
+// root). Override with the BASE_PATH env var for other static hosts that serve from root.
+const base = process.env.BASE_PATH ?? '/Salaxjer/'
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -19,8 +25,8 @@ export default defineConfig({
         theme_color: '#0f766e',
         background_color: '#f8fafc',
         display: 'standalone',
-        start_url: '/',
-        scope: '/',
+        start_url: base,
+        scope: base,
         lang: 'th',
         icons: [
           { src: 'icons/icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
@@ -43,7 +49,7 @@ export default defineConfig({
             options: { cacheName: 'static-assets' }
           }
         ],
-        navigateFallback: '/index.html',
+        navigateFallback: `${base}index.html`,
         cleanupOutdatedCaches: true
       },
       devOptions: {

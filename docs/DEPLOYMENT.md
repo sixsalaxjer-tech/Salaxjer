@@ -1,15 +1,52 @@
 # Deployment Instructions
 
 Phase 1 has **no backend** (`APP_CONFIG.syncEnabled = false`, `apiBaseUrl` empty by default —
-see spec section 7 "Backend และ Hosting Platform", still TO_CONFIRM). The build output of
-`npm run build` is a fully static site (`dist/`) that can be hosted on any static file host or
-CDN that serves HTTPS with correct MIME types for `.webmanifest` and service worker files.
+see spec section 7 "Backend และ Hosting Platform", still TO_CONFIRM for a production release).
+The build output of `npm run build` is a fully static site (`dist/`) that can be hosted on any
+static file host or CDN that serves HTTPS with correct MIME types for `.webmanifest` and service
+worker files.
 
-This document intentionally does not name a specific hosting provider — that choice is one of
-the open `TO_CONFIRM` items in the spec (section 7) and should be made by the team, not assumed.
-Whatever host is chosen, the requirements below are non-negotiable for a PWA.
+**This repository is currently wired up to deploy to GitHub Pages** (see below) as a convenient
+way to get the app in front of the family for real-world testing. This is a pragmatic choice for
+a small, free, zero-maintenance static host — it is not necessarily the final production
+hosting decision, which remains one of the open `TO_CONFIRM` items in spec section 7 and should
+be revisited by the team (e.g. once a Phase 3 backend exists). If you move to a different host,
+the generic requirements below still apply; the GitHub-Pages-specific section covers what's
+already configured and how to change it.
+
+## GitHub Pages (configured)
+
+The repo deploys automatically via `.github/workflows/deploy-pages.yml`: every push to `main`
+runs lint + tests + build, then publishes `dist/` through GitHub's official
+`actions/upload-pages-artifact` + `actions/deploy-pages` actions (Settings → Pages → Source:
+"GitHub Actions").
+
+Two things are specifically wired for GitHub Pages hosting under a repo subpath
+(`https://<owner>.github.io/<repo>/`, not domain root):
+
+1. **Vite `base`** — `vite.config.ts` sets `base` to `/Salaxjer/` (the repo name), so every
+   built asset URL, the manifest's `start_url`/`scope`, and the service worker's
+   `navigateFallback` are correctly prefixed. Override it for a different host by setting the
+   `BASE_PATH` env var at build time (e.g. `BASE_PATH=/ npm run build` for a host serving from
+   root), and update `.github/workflows/deploy-pages.yml` / repo settings to match if the repo
+   is ever renamed.
+2. **`HashRouter` instead of `BrowserRouter`** (`src/App.tsx`) — GitHub Pages is a static file
+   host with no server-side rewrite rule, so a hard refresh or shared link on a deep route like
+   `/Salaxjer/transactions` would 404 before the service worker ever gets a chance to intercept
+   it. Hash-based routes (`/Salaxjer/#/transactions`) never leave the single `index.html` request,
+   so they work with zero server configuration. If a future hosting move adds a proper SPA
+   rewrite rule (see "Requirements for any static host" below), switching back to `BrowserRouter`
+   for cleaner URLs is a one-line change in `src/App.tsx`.
+
+**First-time setup on a new repo:** GitHub Pages must be switched to "Source: GitHub Actions"
+once, either in Settings → Pages, or via `gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow`.
+After that, every push to `main` (or a manual `gh workflow run deploy-pages.yml`) redeploys
+automatically. The live URL is printed in the Actions run summary and in Settings → Pages.
 
 ## Requirements for any static host
+
+The GitHub Pages setup above already satisfies all of these; they're listed here so the same
+guarantees are re-checked if the app ever moves to a different host.
 
 1. **HTTPS is mandatory.** Service workers only register on secure origins (or `localhost`).
    Spec section 18 requires HTTPS for all network communication.
@@ -24,17 +61,21 @@ Whatever host is chosen, the requirements below are non-negotiable for a PWA.
    own versioning (via Workbox precache manifests) handles cache-busting for everything else;
    `index.html` and `sw.js` should be revalidated frequently (e.g. `Cache-Control: no-cache`) so
    users pick up new deployments in a reasonable time.
-5. **SPA fallback routing:** all paths (e.g. `/transactions`, `/settlement`) must serve
-   `index.html` (client-side routing via `react-router-dom`). `vite-plugin-pwa`'s
-   `navigateFallback: '/index.html'` handles this for the service worker's own routing once
-   installed, but the *first, uncached* load of a deep link still depends on the host's rewrite
-   rules doing the same.
+5. **SPA routing without a server-side rewrite:** a host with no rewrite rule (like GitHub Pages)
+   needs client-side routing that never depends on the server resolving arbitrary paths — this
+   repo uses `HashRouter` for exactly that reason (see above). A host that *does* support an SPA
+   fallback rule (serving `index.html` for any unmatched path) can use `BrowserRouter` instead for
+   cleaner URLs; `vite-plugin-pwa`'s `navigateFallback` is already configured to match whichever
+   router is in use once the service worker is installed.
 
-## Deployment steps (generic)
+## Deployment steps (generic, non-GitHub-Pages hosts)
+
+On GitHub Pages this happens automatically via the Actions workflow — nothing to run by hand.
+For any other static host:
 
 ```bash
 npm ci
-npm run build
+BASE_PATH=/ npm run build   # or the subpath your host serves the app from
 # upload the contents of dist/ to your static host, preserving the flat structure
 ```
 
