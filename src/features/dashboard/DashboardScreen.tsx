@@ -7,6 +7,7 @@ import { LoadingState } from '@/components/ui/LoadingState'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { BarList } from '@/components/charts/BarList'
 import { SyncStatusBadge } from '@/components/ui/StatusBadge'
+import { WeeklySummaryCard } from '@/features/dashboard/WeeklySummaryCard'
 
 /** FR-006 Dashboard. */
 export function DashboardScreen() {
@@ -49,6 +50,8 @@ export function DashboardScreen() {
           {delta >= 0 ? '▲' : '▼'} {formatMoney(Math.abs(delta), currency)} เทียบกับเดือนก่อน
         </p>
       </section>
+
+      <WeeklySummaryCard />
 
       <section className="card">
         <h2 className="card__title">ยอดตามหมวดหมู่</h2>

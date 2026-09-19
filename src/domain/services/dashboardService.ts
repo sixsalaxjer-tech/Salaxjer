@@ -67,3 +67,37 @@ export async function getDashboardSummary(
     recent
   }
 }
+
+export interface PeriodBreakdown {
+  rangeStart: string
+  rangeEnd: string
+  total: number
+  byCategory: CategoryTotal[]
+  byMember: MemberTotal[]
+}
+
+/** Same reconciliation rule as getDashboardSummary (BR-010), for an arbitrary date range —
+ * used by the weekly text-summary feature (features/dashboard/WeeklySummaryCard.tsx). */
+export async function getPeriodBreakdown(
+  householdId: string,
+  startIso: string,
+  endIso: string
+): Promise<PeriodBreakdown> {
+  const all = (await db.expenses.where('householdId').equals(householdId).toArray()).filter(isReconcilable)
+  const inRange = all.filter((e) => e.expenseDate >= startIso && e.expenseDate <= endIso)
+
+  const byCategoryMap = new Map<string, number>()
+  const byMemberMap = new Map<string, number>()
+  for (const e of inRange) {
+    byCategoryMap.set(e.categoryId, (byCategoryMap.get(e.categoryId) ?? 0) + e.amount)
+    byMemberMap.set(e.paidByMemberId, (byMemberMap.get(e.paidByMemberId) ?? 0) + e.amount)
+  }
+
+  return {
+    rangeStart: startIso,
+    rangeEnd: endIso,
+    total: sumInRange(all, startIso, endIso),
+    byCategory: [...byCategoryMap.entries()].map(([categoryId, total]) => ({ categoryId, total })),
+    byMember: [...byMemberMap.entries()].map(([memberId, total]) => ({ memberId, total }))
+  }
+}

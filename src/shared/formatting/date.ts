@@ -48,3 +48,33 @@ function daysInMonth(year: number, month: number): number {
 function toIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+export function addDays(dateIso: string, days: number): string {
+  const d = new Date(dateIso + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return toIso(d)
+}
+
+/**
+ * Returns the [startIso, endIso] inclusive range (Monday–Sunday) for the calendar week
+ * containing `dateIso`. Used for the weekly text-summary feature — independent of the
+ * household's month-start-day setting, which only affects the monthly Dashboard/Settlement view.
+ */
+export function getWeekRange(dateIso: string): [string, string] {
+  const d = new Date(dateIso + 'T00:00:00')
+  const isoDayOfWeek = (d.getDay() + 6) % 7 // Monday = 0 ... Sunday = 6
+  const start = new Date(d)
+  start.setDate(start.getDate() - isoDayOfWeek)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 6)
+  return [toIso(start), toIso(end)]
+}
+
+export function formatDateRangeThai(startIso: string, endIso: string): string {
+  const start = new Date(startIso)
+  const end = new Date(endIso)
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+  const startLabel = start.toLocaleDateString('th-TH', { day: 'numeric', month: sameMonth ? undefined : 'short' })
+  const endLabel = end.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${startLabel} - ${endLabel}`
+}

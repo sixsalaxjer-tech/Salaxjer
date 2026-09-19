@@ -15,6 +15,8 @@ Thai is the default UI language; code, identifiers, and documentation are in Eng
 - Personal, Shared, Advance, Household, Income, and Adjustment expenses — FR-003
 - Equal / Exact-amount / Percentage allocation with automatic rounding reconciliation — FR-004, BR-003, BR-011
 - Dashboard: monthly total, month-over-month delta, category/member breakdown, recent activity — FR-006
+- Weekly text summary with a Share/Copy button, for pasting into a chat app like LINE (not in the
+  original spec — added by request; see `src/features/dashboard/WeeklySummaryCard.tsx`)
 - Transaction history with search, filter, edit, duplicate, and void — FR-009
 - Settlement: net balances, minimized suggested transfers, recorded repayments — FR-007
 - Backup & restore: JSON export/import, optional password encryption, Validate/Replace/Merge modes — FR-010
