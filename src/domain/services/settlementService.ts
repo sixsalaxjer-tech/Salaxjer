@@ -2,8 +2,10 @@ import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
 import { computeNetBalances, computeSuggestedTransfers } from '@/domain/rules/settlement'
+import { pushSettlement } from '@/infrastructure/sync/syncEngine'
 import { nowIso, isValidIsoDate } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
+import { APP_CONFIG } from '@/shared/constants/config'
 import type { NetBalance, SuggestedTransfer } from '@/domain/rules/settlement'
 import type { Settlement } from '@/domain/entities/types'
 
@@ -69,6 +71,7 @@ export async function recordSettlement(input: RecordSettlementInput): Promise<Se
       details: { amount: settlement.amount }
     })
   })
+  if (APP_CONFIG.syncEnabled) void pushSettlement(settlement)
   return settlement
 }
 
@@ -78,10 +81,12 @@ export async function listSettlements(householdId: string): Promise<Settlement[]
 }
 
 export async function voidSettlement(settlementId: string): Promise<void> {
+  let updated: Settlement | undefined
   await db.transaction('rw', db.settlements, db.auditLogs, async () => {
     const existing = await db.settlements.get(settlementId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบรายการ')
-    await db.settlements.put({ ...existing, status: 'voided', updatedAt: nowIso() })
+    updated = { ...existing, status: 'voided', updatedAt: nowIso() }
+    await db.settlements.put(updated)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'settlement',
@@ -90,4 +95,5 @@ export async function voidSettlement(settlementId: string): Promise<void> {
       details: {}
     })
   })
+  if (APP_CONFIG.syncEnabled && updated) void pushSettlement(updated)
 }

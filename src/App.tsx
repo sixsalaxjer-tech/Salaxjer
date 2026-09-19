@@ -1,6 +1,10 @@
+import type { ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { HouseholdProvider, useHousehold } from '@/app/providers/HouseholdProvider'
 import { ToastProvider } from '@/app/providers/ToastProvider'
+import { AuthProvider, useAuth } from '@/app/providers/AuthProvider'
+import { CloudSyncBootstrap } from '@/app/CloudSyncBootstrap'
+import { LoginScreen } from '@/features/auth/LoginScreen'
 import { AppLayout } from '@/app/layout/AppLayout'
 import { OnboardingScreen } from '@/features/onboarding/OnboardingScreen'
 import { DashboardScreen } from '@/features/dashboard/DashboardScreen'
@@ -79,19 +83,36 @@ function Gate() {
   )
 }
 
+/** Gates the whole app behind a Supabase session when one is configured (APP_CONFIG.authMode
+ * === 'supabase'). With no Supabase project configured, `enabled` is false and this renders
+ * straight through — the original local-only Phase 1 behavior is completely unchanged. */
+function RequireAuthIfEnabled({ children }: { children: ReactNode }) {
+  const { enabled, loading, session } = useAuth()
+  if (!enabled) return <>{children}</>
+  if (loading) return <LoadingState label="กำลังตรวจสอบการเข้าสู่ระบบ..." />
+  if (!session) return <LoginScreen />
+  return <>{children}</>
+}
+
 export function App() {
   return (
     <HashRouter>
       <ToastProvider>
         {/* Mounted unconditionally so the service worker registers, and offline status is
-            visible, from the very first paint — including the onboarding screen, before any
-            household exists (spec NFR-001/NFR-002: app shell must be install/offline-ready
+            visible, from the very first paint — including the onboarding/login screen, before
+            any household exists (spec NFR-001/NFR-002: app shell must be install/offline-ready
             immediately, not only after first-run setup). */}
         <OfflineBanner />
         <UpdatePrompt />
-        <HouseholdProvider>
-          <Gate />
-        </HouseholdProvider>
+        <AuthProvider>
+          <RequireAuthIfEnabled>
+            <HouseholdProvider>
+              <CloudSyncBootstrap>
+                <Gate />
+              </CloudSyncBootstrap>
+            </HouseholdProvider>
+          </RequireAuthIfEnabled>
+        </AuthProvider>
       </ToastProvider>
     </HashRouter>
   )

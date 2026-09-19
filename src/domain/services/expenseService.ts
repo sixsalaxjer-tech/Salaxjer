@@ -12,6 +12,7 @@ import {
 import { nowIso, isValidIsoDate } from '@/shared/formatting/date'
 import { AppError, toAppError } from '@/shared/types/errors'
 import { logger } from '@/infrastructure/logging/logger'
+import { pushExpense } from '@/infrastructure/sync/syncEngine'
 import { APP_CONFIG } from '@/shared/constants/config'
 import type { AllocationType, Expense, ExpenseAllocation, ExpenseType } from '@/domain/entities/types'
 
@@ -97,14 +98,10 @@ async function assertPayerActiveOnDate(paidByMemberId: string, _expenseDate: str
 export async function createExpense(input: CreateExpenseInput): Promise<Expense> {
   validateHeader(input)
 
-  return db.transaction(
-    'rw',
-    db.expenses,
-    db.expenseAllocations,
-    db.members,
-    db.auditLogs,
-    db.syncQueue,
-    async () => {
+  let createdAllocations: ExpenseAllocation[] = []
+
+  const expense = await db
+    .transaction('rw', db.expenses, db.expenseAllocations, db.members, db.auditLogs, db.syncQueue, async () => {
       // Idempotency guard (VAL-012, BR-009): if this exact submission attempt already landed
       // (e.g. a retried tap while offline), return the existing record instead of duplicating it.
       const already = await db.expenses.where('idempotencyKey').equals(input.idempotencyKey).first()
@@ -137,6 +134,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
       }
 
       await db.expenses.add(expense)
+      const records: ExpenseAllocation[] = []
       for (const a of allocations) {
         const record: ExpenseAllocation = {
           allocationId: uuidv4(),
@@ -147,7 +145,9 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
           allocatedAmount: a.allocatedAmount
         }
         await db.expenseAllocations.add(record)
+        records.push(record)
       }
+      createdAllocations = records
 
       await recordAudit(db.auditLogs, {
         householdId: input.householdId,
@@ -173,11 +173,14 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
 
       logger.log('createExpense', 'success', { entityType: 'expense', entityId: expense.expenseId })
       return expense
-    }
-  ).catch((err) => {
-    logger.log('createExpense', 'error', { errorCode: err instanceof AppError ? err.code : 'UNKNOWN' })
-    throw toAppError(err, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบพื้นที่จัดเก็บ')
-  })
+    })
+    .catch((err) => {
+      logger.log('createExpense', 'error', { errorCode: err instanceof AppError ? err.code : 'UNKNOWN' })
+      throw toAppError(err, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบพื้นที่จัดเก็บ')
+    })
+
+  if (APP_CONFIG.syncEnabled) void pushExpense(expense, createdAllocations)
+  return expense
 }
 
 export interface UpdateExpenseInput extends Omit<CreateExpenseInput, 'idempotencyKey'> {
@@ -186,7 +189,8 @@ export interface UpdateExpenseInput extends Omit<CreateExpenseInput, 'idempotenc
 
 export async function updateExpense(input: UpdateExpenseInput): Promise<Expense> {
   validateHeader(input)
-  return db.transaction(
+  let newAllocations: ExpenseAllocation[] = []
+  const updated = await db.transaction(
     'rw',
     db.expenses,
     db.expenseAllocations,
@@ -215,22 +219,27 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
         description: input.description.trim(),
         tags: input.tags,
         status: input.status,
+        syncStatus: APP_CONFIG.syncEnabled ? 'pending_sync' : existing.syncStatus,
         clientUpdatedAt: nowIso(),
         version: existing.version + 1,
         adjustmentReason: input.adjustmentReason
       }
       await db.expenses.put(updated)
       await db.expenseAllocations.where('expenseId').equals(input.expenseId).delete()
+      const records: ExpenseAllocation[] = []
       for (const a of allocations) {
-        await db.expenseAllocations.add({
+        const record: ExpenseAllocation = {
           allocationId: uuidv4(),
           expenseId: input.expenseId,
           memberId: a.memberId,
           allocationType: a.allocationType,
           percentage: a.percentage,
           allocatedAmount: a.allocatedAmount
-        })
+        }
+        await db.expenseAllocations.add(record)
+        records.push(record)
       }
+      newAllocations = records
       await recordAudit(db.auditLogs, {
         householdId: existing.householdId,
         entityType: 'expense',
@@ -241,19 +250,24 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
       return updated
     }
   )
+  if (APP_CONFIG.syncEnabled) void pushExpense(updated, newAllocations)
+  return updated
 }
 
 /** BR-006: soft delete / void so history and (future) sync remain consistent. */
 export async function voidExpense(expenseId: string, actorMemberId?: string): Promise<void> {
+  let updated: Expense | undefined
   await db.transaction('rw', db.expenses, db.auditLogs, async () => {
     const existing = await db.expenses.get(expenseId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบรายการ')
-    await db.expenses.put({
+    updated = {
       ...existing,
       status: 'voided',
+      syncStatus: APP_CONFIG.syncEnabled ? 'pending_sync' : existing.syncStatus,
       clientUpdatedAt: nowIso(),
       version: existing.version + 1
-    })
+    }
+    await db.expenses.put(updated)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'expense',
@@ -263,6 +277,7 @@ export async function voidExpense(expenseId: string, actorMemberId?: string): Pr
       details: {}
     })
   })
+  if (APP_CONFIG.syncEnabled && updated) void pushExpense(updated, [])
 }
 
 /**
@@ -270,7 +285,8 @@ export async function voidExpense(expenseId: string, actorMemberId?: string): Pr
  * header and allocations so the user can review before it counts toward the dashboard (BR-010).
  */
 export async function duplicateExpense(expenseId: string): Promise<Expense> {
-  return db.transaction('rw', db.expenses, db.expenseAllocations, db.auditLogs, async () => {
+  let copyAllocations: ExpenseAllocation[] = []
+  const copy = await db.transaction('rw', db.expenses, db.expenseAllocations, db.auditLogs, async () => {
     const source = await db.expenses.get(expenseId)
     if (!source) throw new AppError('NOT_FOUND', 'ไม่พบรายการ')
     const sourceAllocations = await db.expenseAllocations.where('expenseId').equals(expenseId).toArray()
@@ -289,9 +305,13 @@ export async function duplicateExpense(expenseId: string): Promise<Expense> {
       idempotencyKey: uuidv4()
     }
     await db.expenses.add(copy)
+    const records: ExpenseAllocation[] = []
     for (const a of sourceAllocations) {
-      await db.expenseAllocations.add({ ...a, allocationId: uuidv4(), expenseId: copy.expenseId })
+      const record = { ...a, allocationId: uuidv4(), expenseId: copy.expenseId }
+      await db.expenseAllocations.add(record)
+      records.push(record)
     }
+    copyAllocations = records
     await recordAudit(db.auditLogs, {
       householdId: copy.householdId,
       entityType: 'expense',
@@ -301,6 +321,8 @@ export async function duplicateExpense(expenseId: string): Promise<Expense> {
     })
     return copy
   })
+  if (APP_CONFIG.syncEnabled) void pushExpense(copy, copyAllocations)
+  return copy
 }
 
 export interface ExpenseFilters {

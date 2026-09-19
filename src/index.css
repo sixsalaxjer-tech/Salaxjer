@@ -862,6 +862,36 @@ img {
   margin-bottom: 20px;
 }
 
+.auth-switch {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.auth-switch__link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.invite-code {
+  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-align: center;
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0 16px;
+}
+
 .storage-bar {
   background: var(--color-border);
   border-radius: 8px;

@@ -52,6 +52,9 @@ export interface Household {
   createdAt: string
   updatedAt: string
   version: number
+  /** Only present when the household is backed by Supabase (see supabase/schema.sql). Lets a
+   * second device join the same household — see Settings > Household. */
+  inviteCode?: string
 }
 
 export interface Member {

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
+import { pushMember } from '@/infrastructure/sync/syncEngine'
 import { nowIso } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
 import { APP_CONFIG } from '@/shared/constants/config'
@@ -54,17 +55,20 @@ export async function addMember(householdId: string, input: MemberInput): Promis
       details: { displayName: member.displayName }
     })
   })
+  if (APP_CONFIG.syncEnabled) void pushMember(member)
   return member
 }
 
 export async function updateMember(memberId: string, patch: Partial<MemberInput>): Promise<void> {
+  let updated: Member | undefined
   await db.transaction('rw', db.members, db.auditLogs, async () => {
     const existing = await db.members.get(memberId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบสมาชิก')
     const displayName = (patch.displayName ?? existing.displayName).trim()
     if (!displayName) throw new AppError('VALIDATION_ERROR', 'กรุณาระบุชื่อสมาชิก')
     await assertNameUnique(existing.householdId, displayName, memberId)
-    await db.members.put({ ...existing, ...patch, displayName, updatedAt: nowIso() })
+    updated = { ...existing, ...patch, displayName, updatedAt: nowIso() }
+    await db.members.put(updated)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'member',
@@ -73,14 +77,17 @@ export async function updateMember(memberId: string, patch: Partial<MemberInput>
       details: { patch }
     })
   })
+  if (APP_CONFIG.syncEnabled && updated) void pushMember(updated)
 }
 
 /** FR-002: members referenced by existing expenses must not be hard-deleted, only deactivated. */
 export async function deactivateMember(memberId: string): Promise<void> {
+  let updated: Member | undefined
   await db.transaction('rw', db.members, db.auditLogs, async () => {
     const existing = await db.members.get(memberId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบสมาชิก')
-    await db.members.put({ ...existing, status: 'inactive', updatedAt: nowIso() })
+    updated = { ...existing, status: 'inactive', updatedAt: nowIso() }
+    await db.members.put(updated)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'member',
@@ -89,4 +96,5 @@ export async function deactivateMember(memberId: string): Promise<void> {
       details: {}
     })
   })
+  if (APP_CONFIG.syncEnabled && updated) void pushMember(updated)
 }

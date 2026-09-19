@@ -25,16 +25,26 @@ export const APP_CONFIG = {
 
   /**
    * TO_CONFIRM: ต้อง Login หรือใช้ Local Profile เท่านั้น
-   * MVP assumption (spec section 8 note): no login in v1 — the device owner is automatically
-   * the Household Admin. This flag exists so the assumption is explicit and easy to change later.
+   * Resolved by request: real accounts (Supabase Auth) so two household members can see each
+   * other's entries live. Falls back to the original local-device-owner MVP mode when no
+   * Supabase project is configured (VITE_SUPABASE_URL unset), so the app still works standalone.
    */
-  authMode: 'local_device_owner' as const,
+  authMode: import.meta.env.VITE_SUPABASE_URL ? ('supabase' as const) : ('local_device_owner' as const),
 
-  /** TO_CONFIRM: ต้อง Sync ข้ามอุปกรณ์ใน Version แรกหรือไม่ — Phase 1 ships with no backend. */
-  syncEnabled: readBool(import.meta.env.VITE_SYNC_ENABLED, false),
+  /** Supabase project — see supabase/schema.sql for the backing tables/RLS/RPCs. */
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
 
-  /** TO_CONFIRM: Backend และ Hosting Platform — left blank until a backend is selected. */
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+  /**
+   * Login is username + password only (no email) — see src/features/auth/syntheticEmail.ts.
+   * This fixed domain is only ever used to shape a syntactically-valid Supabase Auth identifier
+   * locally; it must never receive real mail (requires "Confirm email" off in the Supabase
+   * project, see docs/CLOUD_SYNC.md).
+   */
+  authUsernameDomain: import.meta.env.VITE_AUTH_USERNAME_DOMAIN ?? 'users.sixsalaxjer-tech.github.io',
+
+  /** Cross-device sync (Phase 3): on by default once a Supabase project is configured. */
+  syncEnabled: readBool(import.meta.env.VITE_SYNC_ENABLED, Boolean(import.meta.env.VITE_SUPABASE_URL)),
 
   /** TO_CONFIRM: ต้องเข้ารหัสฐานข้อมูล Local หรือไม่ — whole-DB encryption is out of scope for Phase 1. */
   encryptLocalDb: readBool(import.meta.env.VITE_ENCRYPT_LOCAL_DB, false),

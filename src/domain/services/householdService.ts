@@ -5,6 +5,8 @@ import { isSupportedCurrency } from '@/shared/constants/currency'
 import { nowIso } from '@/shared/formatting/date'
 import { AppError, toAppError } from '@/shared/types/errors'
 import { logger } from '@/infrastructure/logging/logger'
+import { pushHousehold } from '@/infrastructure/sync/syncEngine'
+import { APP_CONFIG } from '@/shared/constants/config'
 import type { Household } from '@/domain/entities/types'
 import { DEFAULT_CATEGORIES } from '@/domain/services/categoryService'
 
@@ -76,10 +78,11 @@ export async function updateHousehold(
   householdId: string,
   patch: Partial<CreateHouseholdInput>
 ): Promise<void> {
+  let next: Household | undefined
   await db.transaction('rw', db.households, db.auditLogs, async () => {
     const existing = await db.households.get(householdId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบข้อมูลครอบครัว')
-    const next: Household = {
+    next = {
       ...existing,
       ...patch,
       name: (patch.name ?? existing.name).trim(),
@@ -96,6 +99,7 @@ export async function updateHousehold(
       details: { patch }
     })
   })
+  if (APP_CONFIG.syncEnabled && next) void pushHousehold(next)
 }
 
 /** MVP assumption: one Household per installed app instance (see spec section 6 assumptions). */

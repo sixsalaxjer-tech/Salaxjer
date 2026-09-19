@@ -1,8 +1,10 @@
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
+import { pushCategory } from '@/infrastructure/sync/syncEngine'
 import { nowIso } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
+import { APP_CONFIG } from '@/shared/constants/config'
 import type { Category } from '@/domain/entities/types'
 
 export const DEFAULT_CATEGORIES: { name: string; icon: string; color: string }[] = [
@@ -56,17 +58,20 @@ export async function addCategory(householdId: string, input: CategoryInput): Pr
       details: { name: category.name }
     })
   })
+  if (APP_CONFIG.syncEnabled) void pushCategory(category)
   return category
 }
 
 export async function updateCategory(categoryId: string, patch: Partial<CategoryInput>): Promise<void> {
+  let updated: Category | undefined
   await db.transaction('rw', db.categories, db.auditLogs, async () => {
     const existing = await db.categories.get(categoryId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบหมวดหมู่')
     const name = (patch.name ?? existing.name).trim()
     if (!name) throw new AppError('VALIDATION_ERROR', 'กรุณาระบุชื่อหมวดหมู่')
     await assertNameUnique(existing.householdId, name, categoryId)
-    await db.categories.put({ ...existing, ...patch, name, updatedAt: nowIso() })
+    updated = { ...existing, ...patch, name, updatedAt: nowIso() }
+    await db.categories.put(updated)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'category',
@@ -75,14 +80,17 @@ export async function updateCategory(categoryId: string, patch: Partial<Category
       details: { patch }
     })
   })
+  if (APP_CONFIG.syncEnabled && updated) void pushCategory(updated)
 }
 
 /** Categories referenced by existing expenses are never hard-deleted — only deactivated. */
 export async function deactivateCategory(categoryId: string): Promise<void> {
+  let updated: Category | undefined
   await db.transaction('rw', db.categories, db.auditLogs, async () => {
     const existing = await db.categories.get(categoryId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบหมวดหมู่')
-    await db.categories.put({ ...existing, status: 'inactive', updatedAt: nowIso() })
+    updated = { ...existing, status: 'inactive', updatedAt: nowIso() }
+    await db.categories.put(updated)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'category',
@@ -91,4 +99,5 @@ export async function deactivateCategory(categoryId: string): Promise<void> {
       details: {}
     })
   })
+  if (APP_CONFIG.syncEnabled && updated) void pushCategory(updated)
 }

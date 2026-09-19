@@ -25,11 +25,18 @@ Thai is the default UI language; code, identifiers, and documentation are in Eng
 - Backup & restore: JSON export/import, optional password encryption, Validate/Replace/Merge modes — FR-010
 - Offline indicator and per-record sync status badges — NFR-001, NFR-010
 - Local IndexedDB schema with a documented migration path — see [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md)
+- **Optional cloud sync** (real accounts + realtime cross-device updates via Supabase's free
+  tier, not in the original spec — added by request for a two-person household): see
+  [`docs/CLOUD_SYNC.md`](./docs/CLOUD_SYNC.md). Off by default; the app is unaffected when no
+  Supabase project is configured.
 
-Attachments, closed periods, audit-log UI, multi-device sync, and OCR are intentionally out of
-scope here — they belong to Phases 2–4 of the spec (section 28) and to the `TO_CONFIRM` items in
-section 7, which are represented as explicit configuration in [`src/shared/constants/config.ts`](./src/shared/constants/config.ts)
-rather than guessed at.
+Attachments, closed periods, audit-log UI, and OCR are intentionally out of scope here — they
+belong to Phases 2/4 of the spec (section 28) and to the `TO_CONFIRM` items in section 7, which
+are represented as explicit configuration in [`src/shared/constants/config.ts`](./src/shared/constants/config.ts)
+rather than guessed at. (Phase 3's multi-device sync is implemented — see above — in a
+deliberately smaller form than the spec's full design: last-write-wins conflict resolution
+instead of a manual-resolution UI, since FR-012 is a Should Have and the target audience here is
+two trusted people, not an open multi-tenant system.)
 
 ## Tech stack
 

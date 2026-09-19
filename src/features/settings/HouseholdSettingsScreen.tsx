@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
+import { useAuth } from '@/app/providers/AuthProvider'
 import { useToast } from '@/app/providers/ToastProvider'
 import { updateHousehold } from '@/domain/services/householdService'
 import { SUPPORTED_CURRENCIES } from '@/shared/constants/currency'
@@ -10,6 +11,7 @@ import { LoadingState } from '@/components/ui/LoadingState'
 
 export function HouseholdSettingsScreen() {
   const { household, loading } = useHousehold()
+  const { enabled: authEnabled, user, signOut } = useAuth()
   const toast = useToast()
   const [name, setName] = useState(household?.name ?? '')
   const [baseCurrency, setBaseCurrency] = useState(household?.baseCurrency ?? 'THB')
@@ -60,6 +62,19 @@ export function HouseholdSettingsScreen() {
           บันทึก
         </Button>
       </form>
+
+      {authEnabled && (
+        <section className="card">
+          <h2 className="card__title">บัญชีออนไลน์</h2>
+          {user?.email && <p className="field__hint">เข้าสู่ระบบด้วยชื่อผู้ใช้ "{user.email.split('@')[0]}"</p>}
+          <p className="field__hint">
+            บัญชีนี้ใช้ร่วมกันทั้งครอบครัว ใครก็ตามที่เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่านเดียวกันจะเห็นข้อมูลเดียวกันแบบเรียลไทม์
+          </p>
+          <Button variant="secondary" fullWidth onClick={() => void signOut()}>
+            ออกจากระบบ
+          </Button>
+        </section>
+      )}
     </div>
   )
 }
