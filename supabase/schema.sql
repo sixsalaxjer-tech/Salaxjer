@@ -147,6 +147,17 @@ drop policy if exists household_update on households;
 create policy household_update on households for update
   using (id in (select household_id from household_members where user_id = auth.uid()));
 
+-- The client updates a household via `.upsert()`, which Postgres implements as
+-- INSERT ... ON CONFLICT DO UPDATE. That statement needs INSERT privilege to even attempt the
+-- insert half, even though every real-world call is actually just updating a row the caller
+-- already owns (creating a brand-new household still only ever happens through the
+-- create_household_with_owner RPC, which bypasses RLS entirely) - so this policy only allows
+-- the insert branch when a household_members row for that id already exists, never a genuinely
+-- new household id.
+drop policy if exists household_insert on households;
+create policy household_insert on households for insert
+  with check (id in (select household_id from household_members where user_id = auth.uid()));
+
 drop policy if exists household_members_select on household_members;
 create policy household_members_select on household_members for select
   using (is_household_member(household_id));
