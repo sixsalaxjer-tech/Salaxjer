@@ -16,6 +16,8 @@ import { BackupSettingsScreen } from '@/features/settings/BackupSettingsScreen'
 import { StorageSettingsScreen } from '@/features/settings/StorageSettingsScreen'
 import { SettingsSubScreen } from '@/app/layout/SettingsSubScreen'
 import { LoadingState } from '@/components/ui/LoadingState'
+import { OfflineBanner } from '@/components/ui/OfflineBanner'
+import { UpdatePrompt } from '@/app/UpdatePrompt'
 
 function Gate() {
   const { household, loading } = useHousehold()
@@ -81,6 +83,12 @@ export function App() {
   return (
     <HashRouter>
       <ToastProvider>
+        {/* Mounted unconditionally so the service worker registers, and offline status is
+            visible, from the very first paint — including the onboarding screen, before any
+            household exists (spec NFR-001/NFR-002: app shell must be install/offline-ready
+            immediately, not only after first-run setup). */}
+        <OfflineBanner />
+        <UpdatePrompt />
         <HouseholdProvider>
           <Gate />
         </HouseholdProvider>
