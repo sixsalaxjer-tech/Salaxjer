@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { ExpenseForm } from '@/features/expenses/ExpenseForm'
+import { BatchExpenseForm } from '@/features/expenses/BatchExpenseForm'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 
 export function AddExpenseScreen() {
   const { activeMembers, activeCategories, loading } = useHousehold()
+  const [mode, setMode] = useState<'single' | 'batch'>('single')
 
   if (loading) return null
 
@@ -39,5 +42,29 @@ export function AddExpenseScreen() {
     )
   }
 
-  return <ExpenseForm />
+  return (
+    <div>
+      <div className="tab-group" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'single'}
+          className={`tab-group__tab${mode === 'single' ? ' tab-group__tab--active' : ''}`}
+          onClick={() => setMode('single')}
+        >
+          กรอกทีละรายการ
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'batch'}
+          className={`tab-group__tab${mode === 'batch' ? ' tab-group__tab--active' : ''}`}
+          onClick={() => setMode('batch')}
+        >
+          กรอกหลายรายการ
+        </button>
+      </div>
+      {mode === 'single' ? <ExpenseForm /> : <BatchExpenseForm />}
+    </div>
+  )
 }

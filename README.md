@@ -13,6 +13,9 @@ Thai is the default UI language; code, identifiers, and documentation are in Eng
 - Member management with soft-deactivation — FR-002
 - Expense categories with soft-deactivation
 - Personal, Shared, Advance, Household, Income, and Adjustment expenses — FR-003
+- Batch entry mode on the Add Expense screen: one shared date/payer, then multiple rows where an
+  amount field like `15+15+15+15` expands into several individual records (not in the original
+  spec — added by request; Personal/Income only, see `src/features/expenses/BatchExpenseForm.tsx`)
 - Equal / Exact-amount / Percentage allocation with automatic rounding reconciliation — FR-004, BR-003, BR-011
 - Dashboard: monthly total, month-over-month delta, category/member breakdown, recent activity — FR-006
 - Weekly text summary with a Share/Copy button, for pasting into a chat app like LINE (not in the

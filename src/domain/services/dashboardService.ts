@@ -27,6 +27,11 @@ function isReconcilable(e: Expense): boolean {
   return e.status === 'active' && !e.deletedAt
 }
 
+/** Income entries record money coming in, not spending — they must never inflate spend totals. */
+function isSpend(e: Expense): boolean {
+  return isReconcilable(e) && e.expenseType !== 'income'
+}
+
 function sumInRange(expenses: Expense[], start: string, end: string): number {
   return expenses
     .filter((e) => e.expenseDate >= start && e.expenseDate <= end)
@@ -40,13 +45,14 @@ export async function getDashboardSummary(
   asOfDateIso: string
 ): Promise<DashboardSummary> {
   const all = (await db.expenses.where('householdId').equals(householdId).toArray()).filter(isReconcilable)
+  const spendable = all.filter(isSpend)
 
   const [rangeStart, rangeEnd] = getMonthRange(asOfDateIso, monthStartDay)
   const prevAnchor = new Date(rangeStart + 'T00:00:00')
   prevAnchor.setDate(prevAnchor.getDate() - 1)
   const [prevStart, prevEnd] = getMonthRange(prevAnchor.toISOString().slice(0, 10), monthStartDay)
 
-  const inRange = all.filter((e) => e.expenseDate >= rangeStart && e.expenseDate <= rangeEnd)
+  const inRange = spendable.filter((e) => e.expenseDate >= rangeStart && e.expenseDate <= rangeEnd)
 
   const byCategoryMap = new Map<string, number>()
   const byMemberMap = new Map<string, number>()
@@ -60,8 +66,8 @@ export async function getDashboardSummary(
   return {
     rangeStart,
     rangeEnd,
-    totalThisPeriod: sumInRange(all, rangeStart, rangeEnd),
-    totalPreviousPeriod: sumInRange(all, prevStart, prevEnd),
+    totalThisPeriod: sumInRange(spendable, rangeStart, rangeEnd),
+    totalPreviousPeriod: sumInRange(spendable, prevStart, prevEnd),
     byCategory: [...byCategoryMap.entries()].map(([categoryId, total]) => ({ categoryId, total })),
     byMember: [...byMemberMap.entries()].map(([memberId, total]) => ({ memberId, total })),
     recent
@@ -83,8 +89,8 @@ export async function getPeriodBreakdown(
   startIso: string,
   endIso: string
 ): Promise<PeriodBreakdown> {
-  const all = (await db.expenses.where('householdId').equals(householdId).toArray()).filter(isReconcilable)
-  const inRange = all.filter((e) => e.expenseDate >= startIso && e.expenseDate <= endIso)
+  const spendable = (await db.expenses.where('householdId').equals(householdId).toArray()).filter(isSpend)
+  const inRange = spendable.filter((e) => e.expenseDate >= startIso && e.expenseDate <= endIso)
 
   const byCategoryMap = new Map<string, number>()
   const byMemberMap = new Map<string, number>()
@@ -96,7 +102,7 @@ export async function getPeriodBreakdown(
   return {
     rangeStart: startIso,
     rangeEnd: endIso,
-    total: sumInRange(all, startIso, endIso),
+    total: sumInRange(spendable, startIso, endIso),
     byCategory: [...byCategoryMap.entries()].map(([categoryId, total]) => ({ categoryId, total })),
     byMember: [...byMemberMap.entries()].map(([memberId, total]) => ({ memberId, total }))
   }
