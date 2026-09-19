@@ -67,9 +67,15 @@ export function HouseholdSettingsScreen() {
         <section className="card">
           <h2 className="card__title">บัญชีออนไลน์</h2>
           {user?.email && <p className="field__hint">เข้าสู่ระบบด้วยชื่อผู้ใช้ "{user.email.split('@')[0]}"</p>}
-          <p className="field__hint">
-            บัญชีนี้ใช้ร่วมกันทั้งครอบครัว ใครก็ตามที่เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่านเดียวกันจะเห็นข้อมูลเดียวกันแบบเรียลไทม์
-          </p>
+          {household.inviteCode && (
+            <>
+              <p className="field__hint">
+                ให้ผู้ดูแลสร้างบัญชีใหม่ใน Supabase Dashboard ก่อน แล้วใช้รหัสนี้ตอนเข้าสู่ระบบครั้งแรก
+                (เลือก "เข้าร่วมด้วยรหัสเชิญ") เพื่อเห็นข้อมูลเดียวกันแบบเรียลไทม์
+              </p>
+              <p className="invite-code">{household.inviteCode}</p>
+            </>
+          )}
           <Button variant="secondary" fullWidth onClick={() => void signOut()}>
             ออกจากระบบ
           </Button>
