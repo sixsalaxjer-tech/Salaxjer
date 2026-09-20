@@ -18,7 +18,7 @@ const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard?.write
  * always offers "copy to clipboard" as a universally-supported fallback.
  */
 export function WeeklySummaryCard() {
-  const { household, categories, members, loading: householdLoading } = useHousehold()
+  const { household, categories, loading: householdLoading } = useHousehold()
   const toast = useToast()
   const [weekOffset, setWeekOffset] = useState(0)
   const [breakdown, setBreakdown] = useState<PeriodBreakdown>()
@@ -38,33 +38,15 @@ export function WeeklySummaryCard() {
   }, [household?.householdId, rangeStart, rangeEnd])
 
   const summaryText = useMemo(() => {
-    if (!breakdown || !household) return ''
+    if (!breakdown) return ''
     return buildWeeklySummaryText({
-      rangeLabel: formatDateRangeThai(rangeStart, rangeEnd),
-      currency: household.baseCurrency,
       total: breakdown.total,
       byCategory: breakdown.byCategory.map((c) => {
         const category = categories.find((x) => x.categoryId === c.categoryId)
-        return { icon: category?.icon, name: category?.name ?? 'ไม่ระบุหมวดหมู่', total: c.total }
-      }),
-      byMember: breakdown.byMember.map((m) => {
-        const member = members.find((x) => x.memberId === m.memberId)
-        return { name: member?.displayName ?? 'ไม่ระบุ', total: m.total }
-      }),
-      items: breakdown.items.map((e) => {
-        const category = categories.find((x) => x.categoryId === e.categoryId)
-        const member = members.find((x) => x.memberId === e.paidByMemberId)
-        return {
-          date: e.expenseDate,
-          description: e.description,
-          amount: e.amount,
-          categoryIcon: category?.icon,
-          categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่',
-          memberName: member?.displayName ?? 'ไม่ระบุ'
-        }
+        return { name: category?.name ?? 'ไม่ระบุหมวดหมู่', total: c.total }
       })
     })
-  }, [breakdown, household, categories, members, rangeStart, rangeEnd])
+  }, [breakdown, categories])
 
   async function handleShare() {
     try {

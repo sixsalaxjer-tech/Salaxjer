@@ -73,12 +73,6 @@ export function getYearRange(dateIso: string): [string, string] {
   return [toIso(new Date(d.getFullYear(), 0, 1)), toIso(new Date(d.getFullYear(), 11, 31))]
 }
 
-export function formatDayMonthThai(isoDate: string): string {
-  const d = new Date(isoDate)
-  if (Number.isNaN(d.getTime())) return isoDate
-  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
-}
-
 export function formatYearThai(isoDate: string): string {
   const d = new Date(isoDate)
   if (Number.isNaN(d.getTime())) return isoDate

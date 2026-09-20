@@ -80,7 +80,6 @@ export interface PeriodBreakdown {
   total: number
   byCategory: CategoryTotal[]
   byMember: MemberTotal[]
-  items: Expense[]
 }
 
 /** Same reconciliation rule as getDashboardSummary (BR-010), for an arbitrary date range —
@@ -105,7 +104,6 @@ export async function getPeriodBreakdown(
     rangeEnd: endIso,
     total: sumInRange(spendable, startIso, endIso),
     byCategory: [...byCategoryMap.entries()].map(([categoryId, total]) => ({ categoryId, total })),
-    byMember: [...byMemberMap.entries()].map(([memberId, total]) => ({ memberId, total })),
-    items: [...inRange].sort((a, b) => (a.expenseDate < b.expenseDate ? -1 : 1))
+    byMember: [...byMemberMap.entries()].map(([memberId, total]) => ({ memberId, total }))
   }
 }

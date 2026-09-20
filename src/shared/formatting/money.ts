@@ -14,6 +14,11 @@ export function fromMinorUnits(minor: number, currency: string): number {
   return Math.round(minor) / factor
 }
 
+/** Plain integer with thousands separators, no currency symbol or decimals (e.g. "7,673"). */
+export function formatPlainNumber(amount: number): string {
+  return Math.round(amount).toLocaleString('en-US')
+}
+
 export function formatMoney(amount: number, currency: string): string {
   const { decimals, symbol } = getCurrencyDef(currency)
   const formatted = amount.toLocaleString('th-TH', {
