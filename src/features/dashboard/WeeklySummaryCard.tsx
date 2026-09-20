@@ -50,6 +50,18 @@ export function WeeklySummaryCard() {
       byMember: breakdown.byMember.map((m) => {
         const member = members.find((x) => x.memberId === m.memberId)
         return { name: member?.displayName ?? 'ไม่ระบุ', total: m.total }
+      }),
+      items: breakdown.items.map((e) => {
+        const category = categories.find((x) => x.categoryId === e.categoryId)
+        const member = members.find((x) => x.memberId === e.paidByMemberId)
+        return {
+          date: e.expenseDate,
+          description: e.description,
+          amount: e.amount,
+          categoryIcon: category?.icon,
+          categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่',
+          memberName: member?.displayName ?? 'ไม่ระบุ'
+        }
       })
     })
   }, [breakdown, household, categories, members, rangeStart, rangeEnd])

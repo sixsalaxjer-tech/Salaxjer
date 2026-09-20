@@ -1,9 +1,19 @@
 import { formatMoney } from '@/shared/formatting/money'
+import { formatDayMonthThai } from '@/shared/formatting/date'
 
 export interface WeeklySummaryLine {
   icon?: string
   name: string
   total: number
+}
+
+export interface WeeklySummaryItem {
+  date: string
+  description: string
+  amount: number
+  categoryIcon?: string
+  categoryName: string
+  memberName: string
 }
 
 export interface WeeklySummaryTextInput {
@@ -12,6 +22,7 @@ export interface WeeklySummaryTextInput {
   total: number
   byCategory: WeeklySummaryLine[]
   byMember: WeeklySummaryLine[]
+  items: WeeklySummaryItem[]
 }
 
 /**
@@ -40,6 +51,18 @@ export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
     const sortedMembers = [...input.byMember].sort((a, b) => b.total - a.total)
     for (const m of sortedMembers) {
       lines.push(`${m.name}: ${formatMoney(m.total, input.currency)}`)
+    }
+  }
+
+  if (input.items.length > 0) {
+    lines.push('')
+    lines.push('รายละเอียดรายการ')
+    for (const item of input.items) {
+      const icon = item.categoryIcon ? `${item.categoryIcon} ` : ''
+      const desc = item.description || 'ไม่มีรายละเอียด'
+      lines.push(
+        `${formatDayMonthThai(item.date)} ${icon}${desc} (${item.categoryName} • ${item.memberName}): ${formatMoney(item.amount, input.currency)}`
+      )
     }
   }
 

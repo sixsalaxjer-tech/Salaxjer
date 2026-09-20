@@ -14,6 +14,10 @@ describe('buildWeeklySummaryText', () => {
       byMember: [
         { name: 'แม่', total: 300 },
         { name: 'พ่อ', total: 850 }
+      ],
+      items: [
+        { date: '2026-09-16', description: 'ก๋วยเตี๋ยว', amount: 850, categoryIcon: '🍜', categoryName: 'อาหาร', memberName: 'พ่อ' },
+        { date: '2026-09-18', description: 'ค่าน้ำมัน', amount: 300, categoryIcon: '🚗', categoryName: 'เดินทาง', memberName: 'แม่' }
       ]
     })
 
@@ -24,6 +28,10 @@ describe('buildWeeklySummaryText', () => {
     expect(text.indexOf('อาหาร')).toBeLessThan(text.indexOf('เดินทาง'))
     expect(text).toContain('รวมทั้งหมด: ฿1,150.00')
     expect(text.indexOf('พ่อ')).toBeLessThan(text.indexOf('แม่'))
+    expect(text).toContain('รายละเอียดรายการ')
+    expect(text).toContain('🍜 ก๋วยเตี๋ยว (อาหาร • พ่อ): ฿850.00')
+    // items must appear in the given (chronological) order, not re-sorted by amount.
+    expect(text.indexOf('ก๋วยเตี๋ยว')).toBeLessThan(text.indexOf('ค่าน้ำมัน'))
   })
 
   it('shows an empty-week message when there is no data', () => {
@@ -32,7 +40,8 @@ describe('buildWeeklySummaryText', () => {
       currency: 'THB',
       total: 0,
       byCategory: [],
-      byMember: []
+      byMember: [],
+      items: []
     })
     expect(text).toContain('ยังไม่มีรายการในสัปดาห์นี้')
   })
@@ -43,8 +52,33 @@ describe('buildWeeklySummaryText', () => {
       currency: 'THB',
       total: 100,
       byCategory: [{ name: 'อื่นๆ', total: 100 }],
-      byMember: []
+      byMember: [],
+      items: []
     })
     expect(text).not.toContain('ยอดที่แต่ละคนจ่าย')
+  })
+
+  it('omits the item-detail section when there are no items', () => {
+    const text = buildWeeklySummaryText({
+      rangeLabel: '1 - 7 ม.ค. 2569',
+      currency: 'THB',
+      total: 100,
+      byCategory: [{ name: 'อื่นๆ', total: 100 }],
+      byMember: [],
+      items: []
+    })
+    expect(text).not.toContain('รายละเอียดรายการ')
+  })
+
+  it('falls back to a placeholder for items with no description', () => {
+    const text = buildWeeklySummaryText({
+      rangeLabel: '1 - 7 ม.ค. 2569',
+      currency: 'THB',
+      total: 50,
+      byCategory: [{ name: 'อื่นๆ', total: 50 }],
+      byMember: [],
+      items: [{ date: '2026-01-03', description: '', amount: 50, categoryName: 'อื่นๆ', memberName: 'พ่อ' }]
+    })
+    expect(text).toContain('ไม่มีรายละเอียด')
   })
 })
