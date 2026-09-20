@@ -16,6 +16,7 @@ export function householdToDb(h: Household) {
     name: h.name,
     base_currency: h.baseCurrency,
     month_start_day: h.monthStartDay,
+    invite_code: h.inviteCode,
     updated_at: h.updatedAt,
     version: h.version
   }

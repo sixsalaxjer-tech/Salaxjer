@@ -24,7 +24,8 @@ describe('sync mappers round-trip', () => {
       monthStartDay: 1,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-      version: 1
+      version: 1,
+      inviteCode: 'ABCD1234'
     }
     const row = { ...householdToDb(h), created_at: h.createdAt }
     expect(dbToHousehold(row)).toEqual(h)
