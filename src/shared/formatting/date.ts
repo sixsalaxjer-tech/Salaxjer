@@ -55,6 +55,30 @@ export function addDays(dateIso: string, days: number): string {
   return toIso(d)
 }
 
+export function addMonths(dateIso: string, months: number): string {
+  const d = new Date(dateIso + 'T00:00:00')
+  d.setMonth(d.getMonth() + months)
+  return toIso(d)
+}
+
+export function addYears(dateIso: string, years: number): string {
+  const d = new Date(dateIso + 'T00:00:00')
+  d.setFullYear(d.getFullYear() + years)
+  return toIso(d)
+}
+
+/** Returns the [startIso, endIso] inclusive range for the calendar year containing `dateIso`. */
+export function getYearRange(dateIso: string): [string, string] {
+  const d = new Date(dateIso + 'T00:00:00')
+  return [toIso(new Date(d.getFullYear(), 0, 1)), toIso(new Date(d.getFullYear(), 11, 31))]
+}
+
+export function formatYearThai(isoDate: string): string {
+  const d = new Date(isoDate)
+  if (Number.isNaN(d.getTime())) return isoDate
+  return d.toLocaleDateString('th-TH', { year: 'numeric' })
+}
+
 /**
  * Returns the [startIso, endIso] inclusive range (Monday–Sunday) for the calendar week
  * containing `dateIso`. Used for the weekly text-summary feature — independent of the
