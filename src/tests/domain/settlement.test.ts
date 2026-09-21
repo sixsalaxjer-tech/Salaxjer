@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeNetBalances, computeSuggestedTransfers } from '@/domain/rules/settlement'
+import { computeNetBalances, computeSuggestedTransfers, excludeExpensesInClearedWeeks } from '@/domain/rules/settlement'
 import type { Expense, ExpenseAllocation, Settlement } from '@/domain/entities/types'
 
 function expense(overrides: Partial<Expense>): Expense {
@@ -93,5 +93,31 @@ describe('computeSuggestedTransfers', () => {
       { memberId: 'bob', netAmount: 0 }
     ])
     expect(transfers).toHaveLength(0)
+  })
+})
+
+describe('excludeExpensesInClearedWeeks', () => {
+  it('drops expenses whose date falls inside a cleared week', () => {
+    const expenses = [
+      expense({ expenseId: 'e1', expenseDate: '2026-01-06' }), // inside the cleared week
+      expense({ expenseId: 'e2', expenseDate: '2026-01-13' }) // the following week, not cleared
+    ]
+    const result = excludeExpensesInClearedWeeks(expenses, [
+      { weekStart: '2026-01-05', weekEnd: '2026-01-11', status: 'cleared' }
+    ])
+    expect(result.map((e) => e.expenseId)).toEqual(['e2'])
+  })
+
+  it('ignores voided week-clear rows, keeping their expenses in the balance', () => {
+    const expenses = [expense({ expenseId: 'e1', expenseDate: '2026-01-06' })]
+    const result = excludeExpensesInClearedWeeks(expenses, [
+      { weekStart: '2026-01-05', weekEnd: '2026-01-11', status: 'voided' }
+    ])
+    expect(result).toHaveLength(1)
+  })
+
+  it('returns the input unchanged when there are no week-clear records', () => {
+    const expenses = [expense({ expenseId: 'e1', expenseDate: '2026-01-06' })]
+    expect(excludeExpensesInClearedWeeks(expenses, [])).toBe(expenses)
   })
 })

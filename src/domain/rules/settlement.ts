@@ -1,6 +1,6 @@
 import { AppError } from '@/shared/types/errors'
 import { fromMinorUnits, toMinorUnits } from '@/shared/formatting/money'
-import type { Expense, ExpenseAllocation, Settlement } from '@/domain/entities/types'
+import type { Expense, ExpenseAllocation, Settlement, WeekSettlement } from '@/domain/entities/types'
 
 export interface NetBalance {
   memberId: string
@@ -12,6 +12,24 @@ export interface SuggestedTransfer {
   fromMemberId: string
   toMemberId: string
   amount: number
+}
+
+/**
+ * A week marked "เคลียร์ยอด" (see WeeklySummaryCard/weekSettlementService) is reconciled — its
+ * expenses must drop out of the running "ยอดคงเหลือของแต่ละคน" balance automatically, so clearing
+ * a week is the only action needed and no one has to also record a matching settlement transfer
+ * by hand. Only 'cleared' (non-voided) rows count; a wrongly-cleared week that's been undone
+ * brings its expenses back into the balance on the next read.
+ */
+export function excludeExpensesInClearedWeeks<T extends { expenseDate: string }>(
+  expenses: T[],
+  weekSettlements: Pick<WeekSettlement, 'weekStart' | 'weekEnd' | 'status'>[]
+): T[] {
+  const clearedRanges = weekSettlements.filter((w) => w.status === 'cleared')
+  if (clearedRanges.length === 0) return expenses
+  return expenses.filter(
+    (e) => !clearedRanges.some((w) => e.expenseDate >= w.weekStart && e.expenseDate <= w.weekEnd)
+  )
 }
 
 const RECONCILIATION_TOLERANCE_MINOR = 1 // allow at most 1 minor unit of rounding drift (BR-011)

@@ -150,6 +150,12 @@ img {
   font-weight: 700;
 }
 
+.card__hint {
+  margin: -8px 0 12px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
 .kpi-card__label {
   margin: 0;
   color: var(--color-muted);

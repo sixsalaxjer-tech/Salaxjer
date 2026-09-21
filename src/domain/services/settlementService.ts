@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
-import { computeNetBalances, computeSuggestedTransfers } from '@/domain/rules/settlement'
+import { computeNetBalances, computeSuggestedTransfers, excludeExpensesInClearedWeeks } from '@/domain/rules/settlement'
 import { pushSettlement } from '@/infrastructure/sync/syncEngine'
 import { nowIso, isValidIsoDate } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
@@ -14,16 +14,22 @@ export interface SettlementSummary {
   suggestedTransfers: SuggestedTransfer[]
 }
 
+/** FR-007 Settlement, aware of per-week clears (see excludeExpensesInClearedWeeks): a week
+ * marked "เคลียร์ยอด" on WeeklySummaryCard drops out of the running balance on its own — no
+ * matching settlement transfer needs to be recorded by hand for it. */
 export async function getSettlementSummary(householdId: string, currency: string): Promise<SettlementSummary> {
-  const [expenses, settlements] = await Promise.all([
+  const [expenses, settlements, weekSettlements] = await Promise.all([
     db.expenses.where('householdId').equals(householdId).toArray(),
-    db.settlements.where('householdId').equals(householdId).toArray()
+    db.settlements.where('householdId').equals(householdId).toArray(),
+    db.weekSettlements.where('householdId').equals(householdId).toArray()
   ])
-  const expenseIds = new Set(expenses.map((e) => e.expenseId))
+  const outstandingExpenses = excludeExpensesInClearedWeeks(expenses, weekSettlements)
+
+  const expenseIds = new Set(outstandingExpenses.map((e) => e.expenseId))
   const allAllocations = await db.expenseAllocations.toArray()
   const allocations = allAllocations.filter((a) => expenseIds.has(a.expenseId))
 
-  const balances = computeNetBalances(currency, expenses, allocations, settlements)
+  const balances = computeNetBalances(currency, outstandingExpenses, allocations, settlements)
   const suggestedTransfers = computeSuggestedTransfers(currency, balances)
   return { balances, suggestedTransfers }
 }

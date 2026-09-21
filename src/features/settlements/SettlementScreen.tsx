@@ -86,6 +86,7 @@ export function SettlementScreen() {
     <div className="screen settlement">
       <section className="card">
         <h2 className="card__title">ยอดคงเหลือของแต่ละคน</h2>
+        <p className="card__hint">ไม่รวมสัปดาห์ที่กด "เคลียร์ยอด" แล้วในการ์ดสรุปรายสัปดาห์</p>
         {summary.balances.every((b) => Math.round(b.netAmount * 100) === 0) ? (
           <EmptyState icon="✅" title="ยอดเรียบร้อย ไม่มีใครค้างจ่าย" />
         ) : (
