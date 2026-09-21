@@ -11,12 +11,22 @@ import {
   dbToHousehold,
   dbToMember,
   dbToSettlement,
+  dbToWeekSettlement,
   expenseToDb,
   householdToDb,
   memberToDb,
-  settlementToDb
+  settlementToDb,
+  weekSettlementToDb
 } from '@/infrastructure/sync/mappers'
-import type { Category, Expense, ExpenseAllocation, Household, Member, Settlement } from '@/domain/entities/types'
+import type {
+  Category,
+  Expense,
+  ExpenseAllocation,
+  Household,
+  Member,
+  Settlement,
+  WeekSettlement
+} from '@/domain/entities/types'
 
 /**
  * Cross-device sync (Phase 3), built on top of the offline-first Dexie layer rather than
@@ -67,6 +77,10 @@ export async function pushSettlement(s: Settlement): Promise<void> {
   await safeUpsert('settlements', [settlementToDb(s)])
 }
 
+export async function pushWeekSettlement(w: WeekSettlement): Promise<void> {
+  await safeUpsert('week_settlements', [weekSettlementToDb(w)])
+}
+
 /** Pushes an expense and its allocations together, then marks the local row 'synced' on success. */
 export async function pushExpense(expense: Expense, allocations: ExpenseAllocation[]): Promise<void> {
   if (!supabase) return
@@ -98,12 +112,13 @@ export async function catchUpPendingPushes(householdId: string): Promise<void> {
 export async function pullAll(householdId: string): Promise<void> {
   if (!supabase) return
   try {
-    const [householdRes, membersRes, categoriesRes, expensesRes, settlementsRes] = await Promise.all([
+    const [householdRes, membersRes, categoriesRes, expensesRes, settlementsRes, weekSettlementsRes] = await Promise.all([
       supabase.from('households').select('*').eq('id', householdId).maybeSingle(),
       supabase.from('members').select('*').eq('household_id', householdId),
       supabase.from('categories').select('*').eq('household_id', householdId),
       supabase.from('expenses').select('*').eq('household_id', householdId),
-      supabase.from('settlements').select('*').eq('household_id', householdId)
+      supabase.from('settlements').select('*').eq('household_id', householdId),
+      supabase.from('week_settlements').select('*').eq('household_id', householdId)
     ])
 
     if (householdRes.data) await db.households.put(dbToHousehold(householdRes.data))
@@ -111,6 +126,7 @@ export async function pullAll(householdId: string): Promise<void> {
     if (categoriesRes.data) await db.categories.bulkPut(categoriesRes.data.map(dbToCategory))
     if (expensesRes.data) await db.expenses.bulkPut(expensesRes.data.map(dbToExpense))
     if (settlementsRes.data) await db.settlements.bulkPut(settlementsRes.data.map(dbToSettlement))
+    if (weekSettlementsRes.data) await db.weekSettlements.bulkPut(weekSettlementsRes.data.map(dbToWeekSettlement))
 
     const expenseIds = (expensesRes.data ?? []).map((e) => e.id as string)
     if (expenseIds.length > 0) {
@@ -153,6 +169,10 @@ export function startRealtimeSync(householdId: string): void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'settlements', filter: `household_id=eq.${householdId}` }, (payload) => {
       if (payload.eventType === 'DELETE') return
       void db.settlements.put(dbToSettlement(payload.new as Record<string, unknown>))
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'week_settlements', filter: `household_id=eq.${householdId}` }, (payload) => {
+      if (payload.eventType === 'DELETE') return
+      void db.weekSettlements.put(dbToWeekSettlement(payload.new as Record<string, unknown>))
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'households', filter: `id=eq.${householdId}` }, (payload) => {
       if (payload.eventType === 'DELETE') return

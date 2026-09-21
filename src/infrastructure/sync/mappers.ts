@@ -7,7 +7,8 @@ import type {
   ExpenseAllocation,
   Household,
   Member,
-  Settlement
+  Settlement,
+  WeekSettlement
 } from '@/domain/entities/types'
 
 export function householdToDb(h: Household) {
@@ -178,6 +179,33 @@ export function dbToSettlement(row: Record<string, unknown>): Settlement {
     status: row.status as Settlement['status'],
     proofAttachmentId: (row.proof_attachment_id as string) ?? undefined,
     note: (row.note as string) ?? undefined,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+export function weekSettlementToDb(w: WeekSettlement) {
+  return {
+    id: w.weekSettlementId,
+    household_id: w.householdId,
+    week_start: w.weekStart,
+    week_end: w.weekEnd,
+    total: w.total,
+    status: w.status,
+    cleared_at: w.clearedAt,
+    updated_at: w.updatedAt
+  }
+}
+
+export function dbToWeekSettlement(row: Record<string, unknown>): WeekSettlement {
+  return {
+    weekSettlementId: row.id as string,
+    householdId: row.household_id as string,
+    weekStart: row.week_start as string,
+    weekEnd: row.week_end as string,
+    total: Number(row.total),
+    status: row.status as WeekSettlement['status'],
+    clearedAt: row.cleared_at as string,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }

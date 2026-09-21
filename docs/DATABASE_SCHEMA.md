@@ -5,7 +5,7 @@ Implemented with [Dexie.js](https://dexie.org/) in `src/infrastructure/db/db.ts`
 all other fields declared on its TypeScript type (`src/domain/entities/types.ts`); Dexie is
 schemaless beyond its indexes.
 
-`SCHEMA_VERSION` (currently `1`) must match the highest `db.version(n)` block. See "Adding a
+`SCHEMA_VERSION` (currently `2`) must match the highest `db.version(n)` block. See "Adding a
 migration" below.
 
 ## Tables
@@ -81,6 +81,15 @@ Indexes: `settlementId` (PK), `householdId`, `fromMemberId`, `toMemberId`, `sett
 `status`. Represents a confirmed repayment between two members (FR-007); never derived from
 `expenses`.
 
+### `weekSettlements`
+Indexes: `weekSettlementId` (PK), `householdId`, `[householdId+weekStart]`, `status`. Added in
+schema version 2. A lightweight per-week reconciliation flag driven by the "เคลียร์ยอด" button on
+the weekly text-share card (`WeeklySummaryCard`/`weekSettlementService.ts`) — distinct from
+`settlements`, which tracks per-member debt transfers. `total` is always a snapshot of that
+week's computed total at clear time, never typed by hand. At most one active (`status: 'cleared'`)
+row per `householdId+weekStart`; undoing a mistaken clear sets `status: 'voided'` rather than
+deleting the row (same never-hard-delete convention as `expenses`/`settlements`).
+
 ### `auditLogs`
 Indexes: `auditLogId` (PK), `householdId`, `entityType`, `entityId`, `timestamp`. Append-only;
 written by every domain service call that creates/mutates a record (spec section 19). No UI
@@ -104,8 +113,8 @@ automatically immediately before a backup **replace** or **merge** import (NFR-0
 
 `exportBackup` / `importBackup` (`src/infrastructure/backup/backupService.ts`) cover:
 `households`, `members`, `categories`, `expenses`, `expenseAllocations`, `settlements`,
-`auditLogs`. `attachments` and `syncQueue` are intentionally excluded — the former has no data
-in Phase 1, the latter is transient runtime state, not user data.
+`weekSettlements`, `auditLogs`. `attachments` and `syncQueue` are intentionally excluded — the
+former has no data in Phase 1, the latter is transient runtime state, not user data.
 
 ## Adding a migration
 

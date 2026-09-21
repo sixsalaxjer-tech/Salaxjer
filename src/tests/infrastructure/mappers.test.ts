@@ -8,12 +8,22 @@ import {
   dbToHousehold,
   dbToMember,
   dbToSettlement,
+  dbToWeekSettlement,
   expenseToDb,
   householdToDb,
   memberToDb,
-  settlementToDb
+  settlementToDb,
+  weekSettlementToDb
 } from '@/infrastructure/sync/mappers'
-import type { Category, Expense, ExpenseAllocation, Household, Member, Settlement } from '@/domain/entities/types'
+import type {
+  Category,
+  Expense,
+  ExpenseAllocation,
+  Household,
+  Member,
+  Settlement,
+  WeekSettlement
+} from '@/domain/entities/types'
 
 describe('sync mappers round-trip', () => {
   it('household', () => {
@@ -110,5 +120,21 @@ describe('sync mappers round-trip', () => {
     }
     const row = { ...settlementToDb(s), created_at: s.createdAt }
     expect(dbToSettlement(row)).toEqual(s)
+  })
+
+  it('weekSettlement', () => {
+    const w: WeekSettlement = {
+      weekSettlementId: 'w1',
+      householdId: 'h1',
+      weekStart: '2026-01-05',
+      weekEnd: '2026-01-11',
+      total: 1150,
+      status: 'cleared',
+      clearedAt: '2026-01-12T00:00:00.000Z',
+      createdAt: '2026-01-12T00:00:00.000Z',
+      updatedAt: '2026-01-12T00:00:00.000Z'
+    }
+    const row = { ...weekSettlementToDb(w), created_at: w.createdAt }
+    expect(dbToWeekSettlement(row)).toEqual(w)
   })
 })

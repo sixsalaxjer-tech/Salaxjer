@@ -25,6 +25,8 @@ export type CategoryStatus = 'active' | 'inactive'
 
 export type SettlementStatus = 'draft' | 'confirmed' | 'voided'
 
+export type WeekSettlementStatus = 'cleared' | 'voided'
+
 export type AuditAction =
   | 'create_expense'
   | 'update_expense'
@@ -32,6 +34,8 @@ export type AuditAction =
   | 'create_settlement'
   | 'confirm_settlement'
   | 'void_settlement'
+  | 'clear_week_settlement'
+  | 'void_week_settlement'
   | 'create_household'
   | 'update_household'
   | 'create_member'
@@ -132,6 +136,25 @@ export interface Settlement {
   status: SettlementStatus
   proofAttachmentId?: string
   note?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Marks a week's total (as shown on the weekly text-share card, WeeklySummaryCard) as
+ * cleared/settled among the household — a lightweight reconciliation flag, not a per-member
+ * debt transfer (see Settlement for that). At most one active ('cleared') row per
+ * householdId+weekStart; clearing again after a void creates a fresh row rather than reviving
+ * the old one, matching the never-hard-delete pattern used elsewhere (BR-006/FR-002).
+ */
+export interface WeekSettlement {
+  weekSettlementId: string
+  householdId: string
+  weekStart: string // ISO date (Monday)
+  weekEnd: string // ISO date (Sunday)
+  total: number // snapshot of that week's total at the moment it was cleared — never typed by hand
+  status: WeekSettlementStatus
+  clearedAt: string
   createdAt: string
   updatedAt: string
 }

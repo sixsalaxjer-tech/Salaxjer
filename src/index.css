@@ -480,6 +480,24 @@ img {
   overflow-y: auto;
 }
 
+.week-clear {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.week-clear__status {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.week-clear__status--cleared {
+  color: var(--color-success);
+}
+
 .bar-list {
   display: flex;
   flex-direction: column;

@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
 import { getPeriodBreakdown, type PeriodBreakdown } from '@/domain/services/dashboardService'
+import { clearWeek, getWeekSettlement, unclearWeek } from '@/domain/services/weekSettlementService'
 import { buildWeeklySummaryText, buildWeeklySummaryDetailedText } from '@/domain/rules/weeklySummaryText'
-import { addDays, formatDateRangeThai, getWeekRange, todayIso } from '@/shared/formatting/date'
+import { addDays, formatDateRangeThai, formatDateThai, getWeekRange, todayIso } from '@/shared/formatting/date'
+import { AppError } from '@/shared/types/errors'
+import type { WeekSettlement } from '@/domain/entities/types'
 import { Button } from '@/components/ui/Button'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -25,6 +28,8 @@ export function WeeklySummaryCard() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [format, setFormat] = useState<'simple' | 'detailed'>('simple')
   const [breakdown, setBreakdown] = useState<PeriodBreakdown>()
+  const [weekSettlement, setWeekSettlement] = useState<WeekSettlement | undefined>()
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<string>()
 
   const anchorDate = addDays(todayIso(), weekOffset * 7)
@@ -33,12 +38,39 @@ export function WeeklySummaryCard() {
   useEffect(() => {
     if (!household) return
     setBreakdown(undefined)
+    setWeekSettlement(undefined)
     setError(undefined)
     getPeriodBreakdown(household.householdId, rangeStart, rangeEnd)
       .then(setBreakdown)
       .catch(() => setError('ไม่สามารถคำนวณสรุปได้ กรุณาลองโหลดข้อมูลใหม่'))
+    getWeekSettlement(household.householdId, rangeStart, rangeEnd).then(setWeekSettlement)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [household?.householdId, rangeStart, rangeEnd])
+
+  async function handleToggleClear() {
+    if (!household || !breakdown || clearing) return
+    setClearing(true)
+    try {
+      if (weekSettlement) {
+        await unclearWeek(weekSettlement.weekSettlementId)
+        setWeekSettlement(undefined)
+        toast.show('success', 'ยกเลิกการเคลียร์ยอดแล้ว')
+      } else {
+        const cleared = await clearWeek({
+          householdId: household.householdId,
+          weekStart: rangeStart,
+          weekEnd: rangeEnd,
+          total: breakdown.total
+        })
+        setWeekSettlement(cleared)
+        toast.show('success', 'เคลียร์ยอดสัปดาห์นี้แล้ว')
+      }
+    } catch (err) {
+      toast.show('error', err instanceof AppError ? err.userMessage : 'ทำรายการไม่สำเร็จ')
+    } finally {
+      setClearing(false)
+    }
+  }
 
   const summaryText = useMemo(() => {
     if (!breakdown) return ''
@@ -139,6 +171,20 @@ export function WeeklySummaryCard() {
       ) : (
         <>
           <pre className="weekly-summary__preview">{summaryText}</pre>
+
+          <div className="week-clear">
+            <span className={`week-clear__status${weekSettlement ? ' week-clear__status--cleared' : ''}`}>
+              {weekSettlement ? `✅ เคลียร์ยอดแล้ว (${formatDateThai(weekSettlement.clearedAt)})` : 'ยังไม่ได้เคลียร์ยอด'}
+            </span>
+            <Button
+              variant={weekSettlement ? 'ghost' : 'secondary'}
+              onClick={() => void handleToggleClear()}
+              disabled={clearing}
+            >
+              {weekSettlement ? 'ยกเลิกการเคลียร์' : 'เคลียร์ยอดสัปดาห์นี้'}
+            </Button>
+          </div>
+
           <div className="form__actions">
             {canShare && (
               <Button variant="primary" fullWidth onClick={() => void handleShare()}>

@@ -97,6 +97,22 @@ create table if not exists settlements (
   updated_at timestamptz not null default now()
 );
 
+-- One row per household+week the household has marked as cleared/settled from the weekly
+-- text-share card — a lightweight reconciliation flag, distinct from the per-member debt
+-- transfers in `settlements`. Never hard-deleted; a mistaken clear is undone by setting
+-- status = 'voided' (see week_settlement_id usage in weekSettlementService.ts).
+create table if not exists week_settlements (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id) on delete cascade,
+  week_start date not null,
+  week_end date not null,
+  total numeric(14, 2) not null,
+  status text not null default 'cleared',
+  cleared_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists audit_logs (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references households(id) on delete cascade,
@@ -137,6 +153,7 @@ alter table categories enable row level security;
 alter table expenses enable row level security;
 alter table expense_allocations enable row level security;
 alter table settlements enable row level security;
+alter table week_settlements enable row level security;
 alter table audit_logs enable row level security;
 
 drop policy if exists household_select on households;
@@ -192,6 +209,11 @@ create policy expense_allocations_all on expense_allocations for all
 
 drop policy if exists settlements_all on settlements;
 create policy settlements_all on settlements for all
+  using (household_id in (select household_id from household_members where user_id = auth.uid()))
+  with check (household_id in (select household_id from household_members where user_id = auth.uid()));
+
+drop policy if exists week_settlements_all on week_settlements;
+create policy week_settlements_all on week_settlements for all
   using (household_id in (select household_id from household_members where user_id = auth.uid()))
   with check (household_id in (select household_id from household_members where user_id = auth.uid()));
 
@@ -265,7 +287,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['households', 'members', 'categories', 'expenses', 'expense_allocations', 'settlements']
+  foreach t in array array['households', 'members', 'categories', 'expenses', 'expense_allocations', 'settlements', 'week_settlements']
   loop
     if not exists (
       select 1 from pg_publication_tables
