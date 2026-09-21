@@ -1,4 +1,5 @@
 import { formatPlainNumber } from '@/shared/formatting/money'
+import { formatDayMonthThai } from '@/shared/formatting/date'
 
 export interface WeeklySummaryLine {
   name: string
@@ -22,5 +23,40 @@ export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
     lines.push(`${c.name}: ${formatPlainNumber(c.total)}`)
   }
   lines.push(`Total: ${formatPlainNumber(input.total)}`)
+  return lines.join('\n')
+}
+
+export interface WeeklySummaryItem {
+  date: string
+  description: string
+  categoryName: string
+  memberName: string
+  amount: number
+}
+
+export interface WeeklySummaryDetailedTextInput extends WeeklySummaryTextInput {
+  items: WeeklySummaryItem[]
+}
+
+/**
+ * A second, more detailed text format offered alongside buildWeeklySummaryText, so the user can
+ * choose which one to share to LINE. Adds a per-item line (date, description, category, payer,
+ * amount) below the same category/total lines. Pure and DB-free; the caller resolves category and
+ * member names before calling this.
+ */
+export function buildWeeklySummaryDetailedText(input: WeeklySummaryDetailedTextInput): string {
+  const lines: string[] = [buildWeeklySummaryText(input)]
+
+  if (input.items.length > 0) {
+    lines.push('')
+    lines.push('รายละเอียดรายการ')
+    for (const item of input.items) {
+      const desc = item.description || 'ไม่มีรายละเอียด'
+      lines.push(
+        `${formatDayMonthThai(item.date)} ${desc} (${item.categoryName} • ${item.memberName}): ${formatPlainNumber(item.amount)}`
+      )
+    }
+  }
+
   return lines.join('\n')
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
 import { getPeriodBreakdown, type PeriodBreakdown } from '@/domain/services/dashboardService'
-import { buildWeeklySummaryText } from '@/domain/rules/weeklySummaryText'
+import { buildWeeklySummaryText, buildWeeklySummaryDetailedText } from '@/domain/rules/weeklySummaryText'
 import { addDays, formatDateRangeThai, getWeekRange, todayIso } from '@/shared/formatting/date'
 import { Button } from '@/components/ui/Button'
 import { LoadingState } from '@/components/ui/LoadingState'
@@ -13,14 +13,17 @@ const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard?.write
 
 /**
  * Weekly plain-text expense summary, meant to be shared into a chat app (e.g. LINE) by hand —
- * requested as a lightweight alternative to a full export. Uses the Web Share API when the
+ * requested as a lightweight alternative to a full export. Offers a choice between a short
+ * category/total format and a detailed one with a per-item breakdown, kept as separate builders
+ * (see weeklySummaryText.ts) rather than merged into one. Uses the Web Share API when the
  * browser/OS supports it (opens the native share sheet, which lists LINE if installed), and
  * always offers "copy to clipboard" as a universally-supported fallback.
  */
 export function WeeklySummaryCard() {
-  const { household, categories, loading: householdLoading } = useHousehold()
+  const { household, categories, members, loading: householdLoading } = useHousehold()
   const toast = useToast()
   const [weekOffset, setWeekOffset] = useState(0)
+  const [format, setFormat] = useState<'simple' | 'detailed'>('simple')
   const [breakdown, setBreakdown] = useState<PeriodBreakdown>()
   const [error, setError] = useState<string>()
 
@@ -39,14 +42,31 @@ export function WeeklySummaryCard() {
 
   const summaryText = useMemo(() => {
     if (!breakdown) return ''
-    return buildWeeklySummaryText({
+    const byCategory = breakdown.byCategory.map((c) => {
+      const category = categories.find((x) => x.categoryId === c.categoryId)
+      return { name: category?.name ?? 'ไม่ระบุหมวดหมู่', total: c.total }
+    })
+
+    if (format === 'simple') {
+      return buildWeeklySummaryText({ total: breakdown.total, byCategory })
+    }
+
+    return buildWeeklySummaryDetailedText({
       total: breakdown.total,
-      byCategory: breakdown.byCategory.map((c) => {
-        const category = categories.find((x) => x.categoryId === c.categoryId)
-        return { name: category?.name ?? 'ไม่ระบุหมวดหมู่', total: c.total }
+      byCategory,
+      items: breakdown.items.map((e) => {
+        const category = categories.find((x) => x.categoryId === e.categoryId)
+        const member = members.find((x) => x.memberId === e.paidByMemberId)
+        return {
+          date: e.expenseDate,
+          description: e.description,
+          amount: e.amount,
+          categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่',
+          memberName: member?.displayName ?? 'ไม่ระบุ'
+        }
       })
     })
-  }, [breakdown, categories])
+  }, [breakdown, categories, members, format])
 
   async function handleShare() {
     try {
@@ -88,6 +108,27 @@ export function WeeklySummaryCard() {
           aria-label="สัปดาห์ถัดไป"
         >
           ถัดไป ›
+        </button>
+      </div>
+
+      <div className="segmented" role="radiogroup" aria-label="รูปแบบสรุป">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={format === 'simple'}
+          className={`segmented__option${format === 'simple' ? ' segmented__option--active' : ''}`}
+          onClick={() => setFormat('simple')}
+        >
+          แบบย่อ
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={format === 'detailed'}
+          className={`segmented__option${format === 'detailed' ? ' segmented__option--active' : ''}`}
+          onClick={() => setFormat('detailed')}
+        >
+          แบบละเอียด
         </button>
       </div>
 
