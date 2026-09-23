@@ -61,6 +61,23 @@ async function safeUpsert(table: string, rows: unknown[]): Promise<boolean> {
   }
 }
 
+/** Deletes every row matching `column = value` in `table`. Used before re-pushing an expense's
+ * allocations (see pushExpense) so an edit's old shares don't linger server-side as orphans. */
+async function safeDeleteWhere(table: string, column: string, value: string): Promise<boolean> {
+  if (!supabase) return false
+  try {
+    const { error } = await supabase.from(table).delete().eq(column, value)
+    if (error) {
+      logger.log(`sync:push:${table}`, 'error', { errorCode: error.code })
+      return false
+    }
+    return true
+  } catch (err) {
+    logger.log(`sync:push:${table}`, 'error', { errorCode: err instanceof Error ? err.name : 'UNKNOWN' })
+    return false
+  }
+}
+
 export async function pushHousehold(h: Household): Promise<void> {
   await safeUpsert('households', [householdToDb(h)])
 }
@@ -81,11 +98,20 @@ export async function pushWeekSettlement(w: WeekSettlement): Promise<void> {
   await safeUpsert('week_settlements', [weekSettlementToDb(w)])
 }
 
-/** Pushes an expense and its allocations together, then marks the local row 'synced' on success. */
+/**
+ * Pushes an expense and its allocations together, then marks the local row 'synced' on success.
+ * updateExpense always replaces an expense's allocations with a fresh set of rows (new
+ * allocationIds) rather than editing the old ones in place, so the old server-side rows must be
+ * deleted here first — otherwise they'd linger as orphans (upsert only ever adds/replaces by id,
+ * it never removes), and a later full pull would resurrect them alongside the new set, doubling
+ * or tripling that expense's allocated total (see RECONCILIATION_ERROR/findUnbalancedExpenses).
+ */
 export async function pushExpense(expense: Expense, allocations: ExpenseAllocation[]): Promise<void> {
   if (!supabase) return
   const expenseOk = await safeUpsert('expenses', [expenseToDb(expense)])
   if (!expenseOk) return
+  const deleteOk = await safeDeleteWhere('expense_allocations', 'expense_id', expense.expenseId)
+  if (!deleteOk) return
   if (allocations.length > 0) {
     const allocOk = await safeUpsert('expense_allocations', allocations.map(allocationToDb))
     if (!allocOk) return
@@ -105,6 +131,18 @@ export async function catchUpPendingPushes(householdId: string): Promise<void> {
     const allocations = await db.expenseAllocations.where('expenseId').equals(expense.expenseId).toArray()
     await pushExpense(expense, allocations)
   }
+}
+
+/**
+ * Replaces the local allocation rows for exactly the given expense ids with `rows` — used by
+ * pullAll. Deleting first (rather than a bulkPut-only merge) means an allocation that no longer
+ * exists server-side (e.g. an orphan from before the pushExpense fix, see its comment) is removed
+ * locally too, instead of surviving forever because a merge can only add/replace, never remove.
+ * Split out from pullAll so it's testable without mocking the Supabase client.
+ */
+export async function replacePulledAllocations(expenseIds: string[], rows: ExpenseAllocation[]): Promise<void> {
+  await db.expenseAllocations.where('expenseId').anyOf(expenseIds).delete()
+  await db.expenseAllocations.bulkPut(rows)
 }
 
 /** Full pull: fetches every row for the household from Supabase and upserts into Dexie. Used
@@ -131,7 +169,7 @@ export async function pullAll(householdId: string): Promise<void> {
     const expenseIds = (expensesRes.data ?? []).map((e) => e.id as string)
     if (expenseIds.length > 0) {
       const { data: allocations } = await supabase.from('expense_allocations').select('*').in('expense_id', expenseIds)
-      if (allocations) await db.expenseAllocations.bulkPut(allocations.map(dbToAllocation))
+      if (allocations) await replacePulledAllocations(expenseIds, allocations.map(dbToAllocation))
     }
 
     logger.log('sync:pullAll', 'success', { entityType: 'household', entityId: householdId })
