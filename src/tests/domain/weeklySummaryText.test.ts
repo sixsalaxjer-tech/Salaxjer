@@ -41,41 +41,46 @@ describe('buildWeeklySummaryText', () => {
 })
 
 describe('buildWeeklySummaryDetailedText', () => {
-  it('adds a per-item detail section below the same category/total lines, in item order', () => {
+  it('builds a header with the date range, one "Category amt+amt" line per category, and a รวม total', () => {
     const text = buildWeeklySummaryDetailedText({
       total: 1150,
+      rangeStart: '2026-09-14',
+      rangeEnd: '2026-09-20',
       byCategory: [
         { name: 'อาหาร', total: 850 },
         { name: 'เดินทาง', total: 300 }
       ],
       items: [
-        { date: '2026-09-16', description: 'ก๋วยเตี๋ยว', amount: 850, categoryName: 'อาหาร', memberName: 'พ่อ' },
-        { date: '2026-09-18', description: 'ค่าน้ำมัน', amount: 300, categoryName: 'เดินทาง', memberName: 'แม่' }
+        { amount: 500, categoryName: 'อาหาร' },
+        { amount: 350, categoryName: 'อาหาร' },
+        { amount: 300, categoryName: 'เดินทาง' }
       ]
     })
 
-    expect(text.startsWith(buildWeeklySummaryText({ total: 1150, byCategory: [{ name: 'อาหาร', total: 850 }, { name: 'เดินทาง', total: 300 }] }))).toBe(true)
-    expect(text).toContain('รายละเอียดรายการ')
-    expect(text).toContain('ก๋วยเตี๋ยว (อาหาร • พ่อ): 850')
-    expect(text.indexOf('ก๋วยเตี๋ยว')).toBeLessThan(text.indexOf('ค่าน้ำมัน'))
+    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อาหาร 500+350', 'เดินทาง 300', 'รวม 1,150'].join('\n'))
   })
 
-  it('falls back to a placeholder for items with no description', () => {
+  it('spans months in the header when the week crosses a month boundary', () => {
     const text = buildWeeklySummaryDetailedText({
-      total: 50,
-      byCategory: [{ name: 'อื่นๆ', total: 50 }],
-      items: [{ date: '2026-01-03', description: '', amount: 50, categoryName: 'อื่นๆ', memberName: 'พ่อ' }]
+      total: 0,
+      rangeStart: '2026-08-31',
+      rangeEnd: '2026-09-06',
+      byCategory: [],
+      items: []
     })
-    expect(text).toContain('ไม่มีรายละเอียด')
+
+    expect(text.split('\n')[0]).toBe('รายละเอียดรายการ วันที่ 31 ส.ค.-6 ก.ย.')
   })
 
-  it('omits the item-detail section when there are no items', () => {
+  it('shows an empty amount list for a category with no items in range', () => {
     const text = buildWeeklySummaryDetailedText({
       total: 100,
+      rangeStart: '2026-09-14',
+      rangeEnd: '2026-09-20',
       byCategory: [{ name: 'อื่นๆ', total: 100 }],
       items: []
     })
-    expect(text).not.toContain('รายละเอียดรายการ')
-    expect(text).toBe('อื่นๆ: 100\nTotal: 100')
+
+    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อื่นๆ ', 'รวม 100'].join('\n'))
   })
 })

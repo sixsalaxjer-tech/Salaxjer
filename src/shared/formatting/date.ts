@@ -100,6 +100,16 @@ export function getWeekRange(dateIso: string): [string, string] {
   return [toIso(start), toIso(end)]
 }
 
+/** Compact day-month range with no year, e.g. "14-20 ก.ย." Used in the weekly share-text header. */
+export function formatWeekRangeThaiCompact(startIso: string, endIso: string): string {
+  const start = new Date(startIso)
+  const end = new Date(endIso)
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+  const startLabel = start.toLocaleDateString('th-TH', { day: 'numeric', month: sameMonth ? undefined : 'short' })
+  const endLabel = end.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+  return `${startLabel}-${endLabel}`
+}
+
 export function formatDateRangeThai(startIso: string, endIso: string): string {
   const start = new Date(startIso)
   const end = new Date(endIso)

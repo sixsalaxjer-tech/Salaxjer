@@ -23,7 +23,7 @@ const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard?.write
  * always offers "copy to clipboard" as a universally-supported fallback.
  */
 export function WeeklySummaryCard() {
-  const { household, categories, members, loading: householdLoading } = useHousehold()
+  const { household, categories, loading: householdLoading } = useHousehold()
   const toast = useToast()
   const [weekOffset, setWeekOffset] = useState(0)
   const [format, setFormat] = useState<'simple' | 'detailed'>('simple')
@@ -86,19 +86,17 @@ export function WeeklySummaryCard() {
     return buildWeeklySummaryDetailedText({
       total: breakdown.total,
       byCategory,
+      rangeStart,
+      rangeEnd,
       items: breakdown.items.map((e) => {
         const category = categories.find((x) => x.categoryId === e.categoryId)
-        const member = members.find((x) => x.memberId === e.paidByMemberId)
         return {
-          date: e.expenseDate,
-          description: e.description,
           amount: e.amount,
-          categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่',
-          memberName: member?.displayName ?? 'ไม่ระบุ'
+          categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่'
         }
       })
     })
-  }, [breakdown, categories, members, format])
+  }, [breakdown, categories, format, rangeStart, rangeEnd])
 
   async function handleShare() {
     try {

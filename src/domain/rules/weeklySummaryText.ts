@@ -1,5 +1,5 @@
 import { formatPlainNumber } from '@/shared/formatting/money'
-import { formatDayMonthThai } from '@/shared/formatting/date'
+import { formatWeekRangeThaiCompact } from '@/shared/formatting/date'
 
 export interface WeeklySummaryLine {
   name: string
@@ -27,36 +27,41 @@ export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
 }
 
 export interface WeeklySummaryItem {
-  date: string
-  description: string
   categoryName: string
-  memberName: string
   amount: number
 }
 
-export interface WeeklySummaryDetailedTextInput extends WeeklySummaryTextInput {
+export interface WeeklySummaryDetailedTextInput {
+  total: number
+  byCategory: WeeklySummaryLine[]
   items: WeeklySummaryItem[]
+  rangeStart: string
+  rangeEnd: string
 }
 
 /**
- * A second, more detailed text format offered alongside buildWeeklySummaryText, so the user can
- * choose which one to share to LINE. Adds a per-item line (date, description, category, payer,
- * amount) below the same category/total lines. Pure and DB-free; the caller resolves category and
- * member names before calling this.
+ * A second text format offered alongside buildWeeklySummaryText, for the user to share to LINE:
+ * a header naming the week's date range, one line per category listing that category's individual
+ * item amounts joined by "+" (in item order), and a final "รวม" grand-total line. Pure and DB-free;
+ * the caller resolves category names before calling this.
  */
 export function buildWeeklySummaryDetailedText(input: WeeklySummaryDetailedTextInput): string {
-  const lines: string[] = [buildWeeklySummaryText(input)]
+  const lines: string[] = [
+    `รายละเอียดรายการ วันที่ ${formatWeekRangeThaiCompact(input.rangeStart, input.rangeEnd)}`
+  ]
 
-  if (input.items.length > 0) {
-    lines.push('')
-    lines.push('รายละเอียดรายการ')
-    for (const item of input.items) {
-      const desc = item.description || 'ไม่มีรายละเอียด'
-      lines.push(
-        `${formatDayMonthThai(item.date)} ${desc} (${item.categoryName} • ${item.memberName}): ${formatPlainNumber(item.amount)}`
-      )
-    }
+  const amountsByCategory = new Map<string, number[]>()
+  for (const item of input.items) {
+    const amounts = amountsByCategory.get(item.categoryName)
+    if (amounts) amounts.push(item.amount)
+    else amountsByCategory.set(item.categoryName, [item.amount])
   }
 
+  for (const c of input.byCategory) {
+    const amounts = amountsByCategory.get(c.name) ?? []
+    lines.push(`${c.name} ${amounts.map(formatPlainNumber).join('+')}`)
+  }
+
+  lines.push(`รวม ${formatPlainNumber(input.total)}`)
   return lines.join('\n')
 }
