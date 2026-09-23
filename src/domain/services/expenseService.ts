@@ -354,3 +354,41 @@ export async function listExpenses(filters: ExpenseFilters): Promise<Expense[]> 
   }
   return items.sort((a, b) => (a.expenseDate < b.expenseDate ? 1 : -1))
 }
+
+/**
+ * Past descriptions grouped by category, for the description-field autocomplete on ExpenseForm
+ * and BatchExpenseForm — most households re-enter the same handful of items every time. Ranked by
+ * how often each description was used, then by how recently, so the most likely repeat comes
+ * first. One pass over the household's expenses, grouped up front, rather than one query per
+ * category (BatchExpenseForm has one description field per row).
+ */
+export async function listDescriptionSuggestionsByCategory(householdId: string): Promise<Record<string, string[]>> {
+  const items = (await db.expenses.where('householdId').equals(householdId).toArray()).filter(
+    (e) => !e.deletedAt && e.description.trim()
+  )
+
+  const statsByCategory = new Map<string, Map<string, { count: number; lastDate: string }>>()
+  for (const e of items) {
+    let stats = statsByCategory.get(e.categoryId)
+    if (!stats) {
+      stats = new Map()
+      statsByCategory.set(e.categoryId, stats)
+    }
+    const key = e.description.trim()
+    const existing = stats.get(key)
+    if (existing) {
+      existing.count += 1
+      if (e.expenseDate > existing.lastDate) existing.lastDate = e.expenseDate
+    } else {
+      stats.set(key, { count: 1, lastDate: e.expenseDate })
+    }
+  }
+
+  const result: Record<string, string[]> = {}
+  for (const [categoryId, stats] of statsByCategory) {
+    result[categoryId] = [...stats.entries()]
+      .sort((a, b) => b[1].count - a[1].count || (a[1].lastDate < b[1].lastDate ? 1 : -1))
+      .map(([description]) => description)
+  }
+  return result
+}

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/infrastructure/db/db'
-import { createExpense } from '@/domain/services/expenseService'
+import { createExpense, listDescriptionSuggestionsByCategory } from '@/domain/services/expenseService'
 import { AppError } from '@/shared/types/errors'
 
 async function seedHouseholdWithMember() {
@@ -129,5 +129,63 @@ describe('createExpense', () => {
         idempotencyKey: 'zero-amount'
       })
     ).rejects.toThrow(AppError)
+  })
+})
+
+describe('listDescriptionSuggestionsByCategory', () => {
+  beforeEach(async () => {
+    await Promise.all(db.tables.map((t) => t.clear()))
+    await seedHouseholdWithMember()
+  })
+
+  async function addExpense(categoryId: string, description: string, expenseDate: string) {
+    await createExpense({
+      householdId: 'h1',
+      expenseDate,
+      amount: 50,
+      currency: 'THB',
+      categoryId,
+      paidByMemberId: 'alice',
+      expenseType: 'personal',
+      description,
+      tags: [],
+      status: 'active',
+      allocationType: 'equal',
+      allocationEntries: [],
+      idempotencyKey: `idem-${categoryId}-${description}-${expenseDate}`
+    })
+  }
+
+  it('ranks a category’s past descriptions by how often each was used', async () => {
+    await addExpense('food', 'ก๋วยเตี๋ยว', '2026-01-01')
+    await addExpense('food', 'ก๋วยเตี๋ยว', '2026-01-02')
+    await addExpense('food', 'ข้าวมันไก่', '2026-01-03')
+
+    const byCategory = await listDescriptionSuggestionsByCategory('h1')
+    expect(byCategory.food).toEqual(['ก๋วยเตี๋ยว', 'ข้าวมันไก่'])
+  })
+
+  it('breaks a tie in usage count by most recent first', async () => {
+    await addExpense('food', 'ก๋วยเตี๋ยว', '2026-01-01')
+    await addExpense('food', 'ข้าวมันไก่', '2026-01-05')
+
+    const byCategory = await listDescriptionSuggestionsByCategory('h1')
+    expect(byCategory.food).toEqual(['ข้าวมันไก่', 'ก๋วยเตี๋ยว'])
+  })
+
+  it('keeps suggestions separate per category', async () => {
+    await addExpense('food', 'ก๋วยเตี๋ยว', '2026-01-01')
+    await addExpense('transport', 'ค่าน้ำมัน', '2026-01-01')
+
+    const byCategory = await listDescriptionSuggestionsByCategory('h1')
+    expect(byCategory.food).toEqual(['ก๋วยเตี๋ยว'])
+    expect(byCategory.transport).toEqual(['ค่าน้ำมัน'])
+  })
+
+  it('excludes expenses with no description', async () => {
+    await addExpense('food', '', '2026-01-01')
+
+    const byCategory = await listDescriptionSuggestionsByCategory('h1')
+    expect(byCategory.food).toBeUndefined()
   })
 })

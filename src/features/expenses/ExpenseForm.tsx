@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
-import { createExpense, updateExpense } from '@/domain/services/expenseService'
+import { createExpense, listDescriptionSuggestionsByCategory, updateExpense } from '@/domain/services/expenseService'
 import { findDuplicateCandidates } from '@/domain/rules/duplicate'
 import { AllocationEditor, type AllocationRowState } from '@/features/expenses/AllocationEditor'
 import { Field } from '@/components/ui/Field'
@@ -45,6 +45,16 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [submitting, setSubmitting] = useState(false)
   const [duplicateCandidates, setDuplicateCandidates] = useState<Expense[] | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState(() => uuidv4())
+  const [descriptionSuggestionsByCategory, setDescriptionSuggestionsByCategory] = useState<Record<string, string[]>>(
+    {}
+  )
+
+  useEffect(() => {
+    if (!household) return
+    listDescriptionSuggestionsByCategory(household.householdId).then(setDescriptionSuggestionsByCategory)
+  }, [household?.householdId])
+
+  const descriptionSuggestions = descriptionSuggestionsByCategory[categoryId] ?? []
 
   const needsAllocation = NEEDS_ALLOCATION.includes(expenseType)
   const tags = useMemo(
@@ -217,13 +227,19 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         )}
 
         <Field label="รายละเอียด" htmlFor="description">
-          <textarea
+          <input
             id="description"
             className="input"
-            rows={2}
+            list="description-suggestions"
+            autoComplete="off"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+          <datalist id="description-suggestions">
+            {descriptionSuggestions.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
         </Field>
 
         <Field label="Tags" htmlFor="tags" hint="คั่นด้วยจุลภาค (,)">

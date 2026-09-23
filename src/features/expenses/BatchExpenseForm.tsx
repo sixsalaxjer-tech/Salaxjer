@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
-import { createExpense } from '@/domain/services/expenseService'
+import { createExpense, listDescriptionSuggestionsByCategory } from '@/domain/services/expenseService'
 import { parseAmountList } from '@/domain/rules/batchAmount'
 import { Field } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -45,6 +45,14 @@ export function BatchExpenseForm() {
   const [paidByMemberId, setPaidByMemberId] = useState(activeMembers[0]?.memberId ?? '')
   const [rows, setRows] = useState<BatchRow[]>([makeRow(activeCategories[0]?.categoryId ?? '')])
   const [submitting, setSubmitting] = useState(false)
+  const [descriptionSuggestionsByCategory, setDescriptionSuggestionsByCategory] = useState<Record<string, string[]>>(
+    {}
+  )
+
+  useEffect(() => {
+    if (!household) return
+    listDescriptionSuggestionsByCategory(household.householdId).then(setDescriptionSuggestionsByCategory)
+  }, [household?.householdId])
 
   function updateRow(id: string, patch: Partial<BatchRow>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
@@ -170,10 +178,17 @@ export function BatchExpenseForm() {
               </div>
               <input
                 className="input"
+                list={`description-suggestions-${row.id}`}
+                autoComplete="off"
                 placeholder="รายละเอียด เช่น มอเตอร์ไซค์รับจ้าง"
                 value={row.description}
                 onChange={(e) => updateRow(row.id, { description: e.target.value })}
               />
+              <datalist id={`description-suggestions-${row.id}`}>
+                {(descriptionSuggestionsByCategory[row.categoryId] ?? []).map((d) => (
+                  <option key={d} value={d} />
+                ))}
+              </datalist>
               <input
                 className="input"
                 placeholder="จำนวนเงิน เช่น 15+15+15+15"
