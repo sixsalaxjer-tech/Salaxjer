@@ -1,7 +1,40 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/infrastructure/db/db'
-import { clearWeek, getWeekSettlement, unclearWeek } from '@/domain/services/weekSettlementService'
+import { createExpense } from '@/domain/services/expenseService'
+import { clearWeek, getWeekSettlement, listUnclearedWeeks, unclearWeek } from '@/domain/services/weekSettlementService'
 import { AppError } from '@/shared/types/errors'
+
+async function seedMember() {
+  await db.members.add({
+    memberId: 'alice',
+    householdId: 'h1',
+    displayName: 'Alice',
+    role: 'admin',
+    color: '#000000',
+    status: 'active',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  })
+}
+
+async function addExpense(overrides: Partial<Parameters<typeof createExpense>[0]> = {}) {
+  await createExpense({
+    householdId: 'h1',
+    expenseDate: '2026-01-06',
+    amount: 100,
+    currency: 'THB',
+    categoryId: 'cat1',
+    paidByMemberId: 'alice',
+    expenseType: 'personal',
+    description: '',
+    tags: [],
+    status: 'active',
+    allocationType: 'equal',
+    allocationEntries: [],
+    idempotencyKey: `idem-${Math.random()}`,
+    ...overrides
+  })
+}
 
 describe('weekSettlementService', () => {
   beforeEach(async () => {
@@ -44,5 +77,46 @@ describe('weekSettlementService', () => {
 
   it('rejects undoing a clear that does not exist', async () => {
     await expect(unclearWeek('missing')).rejects.toThrow(AppError)
+  })
+})
+
+describe('listUnclearedWeeks', () => {
+  beforeEach(async () => {
+    await Promise.all(db.tables.map((t) => t.clear()))
+    await seedMember()
+  })
+
+  it('groups spendable expenses into weeks and sums each week, most recent first', async () => {
+    await addExpense({ expenseDate: '2026-01-06', amount: 100 }) // week 2026-01-05..11
+    await addExpense({ expenseDate: '2026-01-08', amount: 50 }) // same week
+    await addExpense({ expenseDate: '2026-01-13', amount: 30 }) // week 2026-01-12..18
+
+    const weeks = await listUnclearedWeeks('h1')
+    expect(weeks).toEqual([
+      { weekStart: '2026-01-12', weekEnd: '2026-01-18', total: 30 },
+      { weekStart: '2026-01-05', weekEnd: '2026-01-11', total: 150 }
+    ])
+  })
+
+  it('excludes weeks that already have an active cleared record', async () => {
+    await addExpense({ expenseDate: '2026-01-06', amount: 100 })
+    await clearWeek({ householdId: 'h1', weekStart: '2026-01-05', weekEnd: '2026-01-11', total: 100 })
+
+    expect(await listUnclearedWeeks('h1')).toEqual([])
+  })
+
+  it('brings a week back once its clear is undone', async () => {
+    await addExpense({ expenseDate: '2026-01-06', amount: 100 })
+    const cleared = await clearWeek({ householdId: 'h1', weekStart: '2026-01-05', weekEnd: '2026-01-11', total: 100 })
+    await unclearWeek(cleared.weekSettlementId)
+
+    expect(await listUnclearedWeeks('h1')).toEqual([{ weekStart: '2026-01-05', weekEnd: '2026-01-11', total: 100 }])
+  })
+
+  it('ignores income entries and non-active expenses', async () => {
+    await addExpense({ expenseDate: '2026-01-06', amount: 500, expenseType: 'income' })
+    await addExpense({ expenseDate: '2026-01-06', amount: 200, status: 'draft' })
+
+    expect(await listUnclearedWeeks('h1')).toEqual([])
   })
 })

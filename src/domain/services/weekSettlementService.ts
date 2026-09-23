@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
+import { isSpend } from '@/domain/services/dashboardService'
 import { pushWeekSettlement } from '@/infrastructure/sync/syncEngine'
-import { nowIso } from '@/shared/formatting/date'
+import { getWeekRange, nowIso } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
 import { APP_CONFIG } from '@/shared/constants/config'
 import type { WeekSettlement } from '@/domain/entities/types'
@@ -16,6 +17,36 @@ export async function getWeekSettlement(
 ): Promise<WeekSettlement | undefined> {
   const rows = await db.weekSettlements.where('[householdId+weekStart]').equals([householdId, weekStart]).toArray()
   return rows.find((r) => r.weekEnd === weekEnd && r.status === 'cleared')
+}
+
+export interface UnclearedWeek {
+  weekStart: string
+  weekEnd: string
+  total: number
+}
+
+/** Every calendar week that has at least one spendable expense but no active 'cleared' record —
+ * drives the "สัปดาห์ที่ยังไม่ได้เคลียร์ยอด" list on SettlementScreen, so a week can be cleared
+ * without visiting WeeklySummaryCard first. Most recent week first. */
+export async function listUnclearedWeeks(householdId: string): Promise<UnclearedWeek[]> {
+  const [expenses, weekSettlements] = await Promise.all([
+    db.expenses.where('householdId').equals(householdId).toArray(),
+    db.weekSettlements.where('householdId').equals(householdId).toArray()
+  ])
+  const clearedWeekStarts = new Set(
+    weekSettlements.filter((w) => w.status === 'cleared').map((w) => w.weekStart)
+  )
+
+  const totals = new Map<string, UnclearedWeek>()
+  for (const e of expenses.filter(isSpend)) {
+    const [weekStart, weekEnd] = getWeekRange(e.expenseDate)
+    if (clearedWeekStarts.has(weekStart)) continue
+    const existing = totals.get(weekStart)
+    if (existing) existing.total += e.amount
+    else totals.set(weekStart, { weekStart, weekEnd, total: e.amount })
+  }
+
+  return [...totals.values()].sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))
 }
 
 export interface ClearWeekInput {

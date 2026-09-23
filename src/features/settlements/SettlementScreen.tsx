@@ -7,8 +7,9 @@ import {
   recordSettlement,
   type SettlementSummary
 } from '@/domain/services/settlementService'
+import { clearWeek, listUnclearedWeeks, type UnclearedWeek } from '@/domain/services/weekSettlementService'
 import { formatMoney } from '@/shared/formatting/money'
-import { formatDateThai, todayIso } from '@/shared/formatting/date'
+import { formatDateRangeThai, formatDateThai, todayIso } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -22,21 +23,44 @@ export function SettlementScreen() {
   const toast = useToast()
   const [summary, setSummary] = useState<SettlementSummary>()
   const [history, setHistory] = useState<Settlement[]>()
+  const [unclearedWeeks, setUnclearedWeeks] = useState<UnclearedWeek[]>()
+  const [clearingWeekStart, setClearingWeekStart] = useState<string>()
   const [error, setError] = useState<string>()
   const [form, setForm] = useState<{ fromMemberId: string; toMemberId: string; amount: string; note: string }>()
 
   async function reload() {
     if (!household) return
     try {
-      const [s, h] = await Promise.all([
+      const [s, h, w] = await Promise.all([
         getSettlementSummary(household.householdId, household.baseCurrency),
-        listSettlements(household.householdId)
+        listSettlements(household.householdId),
+        listUnclearedWeeks(household.householdId)
       ])
       setSummary(s)
       setHistory(h)
+      setUnclearedWeeks(w)
       setError(undefined)
     } catch (err) {
       setError(err instanceof AppError ? err.userMessage : 'ยอดเคลียร์ไม่สมดุล กรุณาตรวจสอบรายการปรับปรุง')
+    }
+  }
+
+  async function handleClearWeek(week: UnclearedWeek) {
+    if (!household || clearingWeekStart) return
+    setClearingWeekStart(week.weekStart)
+    try {
+      await clearWeek({
+        householdId: household.householdId,
+        weekStart: week.weekStart,
+        weekEnd: week.weekEnd,
+        total: week.total
+      })
+      toast.show('success', 'เคลียร์ยอดสัปดาห์นี้แล้ว')
+      await reload()
+    } catch (err) {
+      toast.show('error', err instanceof AppError ? err.userMessage : 'ทำรายการไม่สำเร็จ')
+    } finally {
+      setClearingWeekStart(undefined)
     }
   }
 
@@ -80,7 +104,7 @@ export function SettlementScreen() {
 
   if (householdLoading || (!summary && !error)) return <LoadingState />
   if (error) return <EmptyState icon="⚠️" title={error} />
-  if (!summary || !history || !household) return null
+  if (!summary || !history || !unclearedWeeks || !household) return null
 
   return (
     <div className="screen settlement">
@@ -98,6 +122,29 @@ export function SettlementScreen() {
                   {b.netAmount >= 0 ? 'ได้รับคืน ' : 'ต้องจ่าย '}
                   {formatMoney(Math.abs(b.netAmount), household.baseCurrency)}
                 </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card">
+        <h2 className="card__title">สัปดาห์ที่ยังไม่ได้เคลียร์ยอด</h2>
+        {unclearedWeeks.length === 0 ? (
+          <EmptyState icon="✅" title="เคลียร์ยอดครบทุกสัปดาห์แล้ว" />
+        ) : (
+          <ul className="transfer-list">
+            {unclearedWeeks.map((w) => (
+              <li key={w.weekStart} className="transfer-list__item">
+                <span>{formatDateRangeThai(w.weekStart, w.weekEnd)}</span>
+                <span>{formatMoney(w.total, household.baseCurrency)}</span>
+                <Button
+                  variant="secondary"
+                  disabled={clearingWeekStart === w.weekStart}
+                  onClick={() => void handleClearWeek(w)}
+                >
+                  เคลียร์ยอด
+                </Button>
               </li>
             ))}
           </ul>

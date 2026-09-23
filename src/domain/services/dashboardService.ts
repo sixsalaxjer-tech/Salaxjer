@@ -28,7 +28,7 @@ function isReconcilable(e: Expense): boolean {
 }
 
 /** Income entries record money coming in, not spending — they must never inflate spend totals. */
-function isSpend(e: Expense): boolean {
+export function isSpend(e: Expense): boolean {
   return isReconcilable(e) && e.expenseType !== 'income'
 }
 
