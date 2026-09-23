@@ -3,6 +3,7 @@ import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
 import { computeNetBalances, computeSuggestedTransfers, excludeExpensesInClearedWeeks } from '@/domain/rules/settlement'
 import { pushSettlement } from '@/infrastructure/sync/syncEngine'
+import { fromMinorUnits, toMinorUnits } from '@/shared/formatting/money'
 import { nowIso, isValidIsoDate } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
 import { APP_CONFIG } from '@/shared/constants/config'
@@ -32,6 +33,54 @@ export async function getSettlementSummary(householdId: string, currency: string
   const balances = computeNetBalances(currency, outstandingExpenses, allocations, settlements)
   const suggestedTransfers = computeSuggestedTransfers(currency, balances)
   return { balances, suggestedTransfers }
+}
+
+export interface UnbalancedExpense {
+  expenseId: string
+  expenseDate: string
+  description: string
+  amount: number
+  allocatedTotal: number
+}
+
+/**
+ * Pinpoints the expense(s) causing getSettlementSummary's RECONCILIATION_ERROR: an active,
+ * non-deleted expense whose allocations don't sum to its amount (normally impossible going
+ * through createExpense/updateExpense, since both call assertAllocationBalanced — this only turns
+ * up for data that bypassed that check, e.g. an old row from before that guard existed, or a
+ * partial backup restore). Lets SettlementScreen point at the exact record to fix instead of just
+ * showing the dead-end "ยอดเคลียร์ไม่สมดุล" message.
+ */
+export async function findUnbalancedExpenses(householdId: string, currency: string): Promise<UnbalancedExpense[]> {
+  const expenses = (await db.expenses.where('householdId').equals(householdId).toArray()).filter(
+    (e) => e.status === 'active' && !e.deletedAt
+  )
+  const expenseIds = new Set(expenses.map((e) => e.expenseId))
+  const allocations = (await db.expenseAllocations.toArray()).filter((a) => expenseIds.has(a.expenseId))
+
+  const allocatedMinorByExpense = new Map<string, number>()
+  for (const a of allocations) {
+    allocatedMinorByExpense.set(
+      a.expenseId,
+      (allocatedMinorByExpense.get(a.expenseId) ?? 0) + toMinorUnits(a.allocatedAmount, currency)
+    )
+  }
+
+  const result: UnbalancedExpense[] = []
+  for (const e of expenses) {
+    const totalMinor = toMinorUnits(e.amount, currency)
+    const allocatedMinor = allocatedMinorByExpense.get(e.expenseId) ?? 0
+    if (allocatedMinor !== totalMinor) {
+      result.push({
+        expenseId: e.expenseId,
+        expenseDate: e.expenseDate,
+        description: e.description,
+        amount: e.amount,
+        allocatedTotal: fromMinorUnits(allocatedMinor, currency)
+      })
+    }
+  }
+  return result.sort((a, b) => (a.expenseDate < b.expenseDate ? 1 : -1))
 }
 
 export interface RecordSettlementInput {

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/infrastructure/db/db'
-import { getSettlementSummary } from '@/domain/services/settlementService'
+import { findUnbalancedExpenses, getSettlementSummary } from '@/domain/services/settlementService'
 import { clearWeek, unclearWeek } from '@/domain/services/weekSettlementService'
+import { AppError } from '@/shared/types/errors'
 import type { Expense, ExpenseAllocation } from '@/domain/entities/types'
 
 function expense(overrides: Partial<Expense>): Expense {
@@ -55,5 +56,45 @@ describe('getSettlementSummary', () => {
 
     const summary = await getSettlementSummary('h1', 'THB')
     expect(summary.balances.find((b) => b.memberId === 'bob')?.netAmount).toBeCloseTo(-50, 2)
+  })
+})
+
+describe('findUnbalancedExpenses', () => {
+  beforeEach(async () => {
+    await Promise.all(db.tables.map((t) => t.clear()))
+  })
+
+  it('flags an expense whose allocations do not sum to its amount', async () => {
+    await db.expenses.add(expense({ expenseId: 'e1', amount: 100, description: 'ค่าซ่อมรถ' }))
+    await db.expenseAllocations.bulkAdd([
+      { allocationId: 'a1', expenseId: 'e1', memberId: 'alice', allocationType: 'equal', allocatedAmount: 50 },
+      { allocationId: 'a2', expenseId: 'e1', memberId: 'bob', allocationType: 'equal', allocatedAmount: 40 }
+    ])
+
+    const found = await findUnbalancedExpenses('h1', 'THB')
+    expect(found).toEqual([
+      { expenseId: 'e1', expenseDate: '2026-01-06', description: 'ค่าซ่อมรถ', amount: 100, allocatedTotal: 90 }
+    ])
+
+    await expect(getSettlementSummary('h1', 'THB')).rejects.toThrow(AppError)
+  })
+
+  it('ignores voided and soft-deleted expenses even if their allocations do not balance', async () => {
+    await db.expenses.add(expense({ expenseId: 'e1', amount: 100, status: 'voided' }))
+    await db.expenseAllocations.bulkAdd([
+      { allocationId: 'a1', expenseId: 'e1', memberId: 'alice', allocationType: 'equal', allocatedAmount: 40 }
+    ])
+
+    expect(await findUnbalancedExpenses('h1', 'THB')).toEqual([])
+  })
+
+  it('finds nothing wrong for well-formed data', async () => {
+    await db.expenses.add(expense({ expenseId: 'e1', amount: 100 }))
+    await db.expenseAllocations.bulkAdd([
+      { allocationId: 'a1', expenseId: 'e1', memberId: 'alice', allocationType: 'equal', allocatedAmount: 50 },
+      { allocationId: 'a2', expenseId: 'e1', memberId: 'bob', allocationType: 'equal', allocatedAmount: 50 }
+    ])
+
+    expect(await findUnbalancedExpenses('h1', 'THB')).toEqual([])
   })
 })

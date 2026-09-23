@@ -1,11 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
 import {
+  findUnbalancedExpenses,
   getSettlementSummary,
   listSettlements,
   recordSettlement,
-  type SettlementSummary
+  type SettlementSummary,
+  type UnbalancedExpense
 } from '@/domain/services/settlementService'
 import { clearWeek, listUnclearedWeeks, type UnclearedWeek } from '@/domain/services/weekSettlementService'
 import { formatMoney } from '@/shared/formatting/money'
@@ -26,6 +29,7 @@ export function SettlementScreen() {
   const [unclearedWeeks, setUnclearedWeeks] = useState<UnclearedWeek[]>()
   const [clearingWeekStart, setClearingWeekStart] = useState<string>()
   const [error, setError] = useState<string>()
+  const [unbalancedExpenses, setUnbalancedExpenses] = useState<UnbalancedExpense[]>()
   const [form, setForm] = useState<{ fromMemberId: string; toMemberId: string; amount: string; note: string }>()
 
   async function reload() {
@@ -40,8 +44,12 @@ export function SettlementScreen() {
       setHistory(h)
       setUnclearedWeeks(w)
       setError(undefined)
+      setUnbalancedExpenses(undefined)
     } catch (err) {
       setError(err instanceof AppError ? err.userMessage : 'ยอดเคลียร์ไม่สมดุล กรุณาตรวจสอบรายการปรับปรุง')
+      if (err instanceof AppError && err.code === 'RECONCILIATION_ERROR') {
+        setUnbalancedExpenses(await findUnbalancedExpenses(household.householdId, household.baseCurrency))
+      }
     }
   }
 
@@ -103,7 +111,40 @@ export function SettlementScreen() {
   }
 
   if (householdLoading || (!summary && !error)) return <LoadingState />
-  if (error) return <EmptyState icon="⚠️" title={error} />
+  if (error) {
+    return (
+      <div className="screen settlement">
+        <EmptyState icon="⚠️" title={error} />
+        {unbalancedExpenses && unbalancedExpenses.length > 0 && (
+          <section className="card">
+            <h2 className="card__title">รายการที่ทำให้ยอดไม่สมดุล</h2>
+            <p className="card__hint">
+              ยอดแบ่งของรายการเหล่านี้ไม่เท่ากับยอดรวม กรุณาแก้ไขแต่ละรายการให้ถูกต้อง
+            </p>
+            <ul className="tx-list">
+              {unbalancedExpenses.map((e) => (
+                <li key={e.expenseId} className="tx-item">
+                  <div className="tx-item__main">
+                    <div className="tx-item__info">
+                      <span className="tx-item__desc">{e.description || 'ไม่มีรายละเอียด'}</span>
+                      <span className="tx-item__meta">
+                        {formatDateThai(e.expenseDate)} · ยอดรวม{' '}
+                        {formatMoney(e.amount, household?.baseCurrency ?? 'THB')} · ยอดแบ่ง{' '}
+                        {formatMoney(e.allocatedTotal, household?.baseCurrency ?? 'THB')}
+                      </span>
+                    </div>
+                    <Link to={`/transactions/${e.expenseId}/edit`} className="btn btn--ghost btn--small">
+                      แก้ไข
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    )
+  }
   if (!summary || !history || !unclearedWeeks || !household) return null
 
   return (
