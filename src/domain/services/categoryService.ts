@@ -101,3 +101,21 @@ export async function deactivateCategory(categoryId: string): Promise<void> {
   })
   if (APP_CONFIG.syncEnabled && updated) void pushCategory(updated)
 }
+
+export async function reactivateCategory(categoryId: string): Promise<void> {
+  let updated: Category | undefined
+  await db.transaction('rw', db.categories, db.auditLogs, async () => {
+    const existing = await db.categories.get(categoryId)
+    if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบหมวดหมู่')
+    updated = { ...existing, status: 'active', updatedAt: nowIso() }
+    await db.categories.put(updated)
+    await recordAudit(db.auditLogs, {
+      householdId: existing.householdId,
+      entityType: 'category',
+      entityId: categoryId,
+      action: 'reactivate_category',
+      details: {}
+    })
+  })
+  if (APP_CONFIG.syncEnabled && updated) void pushCategory(updated)
+}

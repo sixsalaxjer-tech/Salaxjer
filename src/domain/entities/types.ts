@@ -44,6 +44,7 @@ export type AuditAction =
   | 'create_category'
   | 'update_category'
   | 'deactivate_category'
+  | 'reactivate_category'
   | 'import_restore'
   | 'export_backup'
   | 'conflict_resolution'

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
-import { addCategory, deactivateCategory } from '@/domain/services/categoryService'
+import { addCategory, deactivateCategory, reactivateCategory } from '@/domain/services/categoryService'
 import { AppError } from '@/shared/types/errors'
 import { Field } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -30,6 +30,11 @@ export function CategoriesSettingsScreen() {
   async function handleDeactivate(categoryId: string) {
     await deactivateCategory(categoryId)
     toast.show('success', 'ปิดใช้งานหมวดหมู่แล้ว')
+  }
+
+  async function handleReactivate(categoryId: string) {
+    await reactivateCategory(categoryId)
+    toast.show('success', 'เปิดใช้งานหมวดหมู่แล้ว')
   }
 
   return (
@@ -71,13 +76,17 @@ export function CategoriesSettingsScreen() {
               <span className={`badge badge--status-${c.status === 'active' ? 'active' : 'voided'}`}>
                 {c.status === 'active' ? 'ใช้งาน' : 'ปิดใช้งาน'}
               </span>
-              {c.status === 'active' && (
-                <div className="member-row__actions">
+              <div className="member-row__actions">
+                {c.status === 'active' ? (
                   <button className="btn btn--ghost btn--small" onClick={() => void handleDeactivate(c.categoryId)}>
                     ปิดใช้งาน
                   </button>
-                </div>
-              )}
+                ) : (
+                  <button className="btn btn--ghost btn--small" onClick={() => void handleReactivate(c.categoryId)}>
+                    เปิดใช้งาน
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>
