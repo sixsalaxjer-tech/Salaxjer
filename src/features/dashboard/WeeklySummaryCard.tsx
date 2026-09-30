@@ -92,6 +92,7 @@ export function WeeklySummaryCard() {
         const category = categories.find((x) => x.categoryId === e.categoryId)
         return {
           amount: e.amount,
+          description: e.description,
           categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่'
         }
       })

@@ -51,13 +51,40 @@ describe('buildWeeklySummaryDetailedText', () => {
         { name: 'เดินทาง', total: 300 }
       ],
       items: [
-        { amount: 500, categoryName: 'อาหาร' },
-        { amount: 350, categoryName: 'อาหาร' },
-        { amount: 300, categoryName: 'เดินทาง' }
+        { amount: 500, description: 'มื้อเช้า', categoryName: 'อาหาร' },
+        { amount: 350, description: 'มื้อเย็น', categoryName: 'อาหาร' },
+        { amount: 300, description: 'แท็กซี่', categoryName: 'เดินทาง' }
       ]
     })
 
     expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อาหาร 500+350', 'เดินทาง 300', 'รวม 1,150'].join('\n'))
+  })
+
+  it('lists each item in the อื่นๆ category on its own "description amount" line instead of summing them', () => {
+    const text = buildWeeklySummaryDetailedText({
+      total: 750,
+      rangeStart: '2026-09-21',
+      rangeEnd: '2026-09-27',
+      byCategory: [
+        { name: 'อาหาร', total: 100 },
+        { name: 'อื่นๆ', total: 650 }
+      ],
+      items: [
+        { amount: 100, description: 'ข้าวกลางวัน', categoryName: 'อาหาร' },
+        { amount: 450, description: 'เครื่องเป่าลม', categoryName: 'อื่นๆ' },
+        { amount: 200, description: 'water pump', categoryName: 'อื่นๆ' }
+      ]
+    })
+
+    expect(text).toBe(
+      [
+        'รายละเอียดรายการ วันที่ 21-27 ก.ย.',
+        'อาหาร 100',
+        'เครื่องเป่าลม 450',
+        'water pump 200',
+        'รวม 750'
+      ].join('\n')
+    )
   })
 
   it('spans months in the header when the week crosses a month boundary', () => {
@@ -72,7 +99,19 @@ describe('buildWeeklySummaryDetailedText', () => {
     expect(text.split('\n')[0]).toBe('รายละเอียดรายการ วันที่ 31 ส.ค.-6 ก.ย.')
   })
 
-  it('shows an empty amount list for a category with no items in range', () => {
+  it('shows an empty amount list for a regular category with no items in range', () => {
+    const text = buildWeeklySummaryDetailedText({
+      total: 100,
+      rangeStart: '2026-09-14',
+      rangeEnd: '2026-09-20',
+      byCategory: [{ name: 'อาหาร', total: 100 }],
+      items: []
+    })
+
+    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อาหาร ', 'รวม 100'].join('\n'))
+  })
+
+  it('produces no lines for an อื่นๆ category with no items in range', () => {
     const text = buildWeeklySummaryDetailedText({
       total: 100,
       rangeStart: '2026-09-14',
@@ -81,6 +120,6 @@ describe('buildWeeklySummaryDetailedText', () => {
       items: []
     })
 
-    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อื่นๆ ', 'รวม 100'].join('\n'))
+    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'รวม 100'].join('\n'))
   })
 })

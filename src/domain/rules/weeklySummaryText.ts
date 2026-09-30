@@ -28,6 +28,7 @@ export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
 
 export interface WeeklySummaryItem {
   categoryName: string
+  description: string
   amount: number
 }
 
@@ -39,27 +40,38 @@ export interface WeeklySummaryDetailedTextInput {
   rangeEnd: string
 }
 
+/** Category whose items are listed individually rather than summed onto one line (see below). */
+const OTHER_CATEGORY_NAME = 'อื่นๆ'
+
 /**
  * A second text format offered alongside buildWeeklySummaryText, for the user to share to LINE:
  * a header naming the week's date range, one line per category listing that category's individual
- * item amounts joined by "+" (in item order), and a final "รวม" grand-total line. Pure and DB-free;
- * the caller resolves category names before calling this.
+ * item amounts joined by "+" (in item order), and a final "รวม" grand-total line. The "อื่นๆ" (Other)
+ * category is the exception: since its items are usually unrelated one-offs, each is listed on its
+ * own line as "description amount" instead of being summed together. Pure and DB-free; the caller
+ * resolves category names before calling this.
  */
 export function buildWeeklySummaryDetailedText(input: WeeklySummaryDetailedTextInput): string {
   const lines: string[] = [
     `รายละเอียดรายการ วันที่ ${formatWeekRangeThaiCompact(input.rangeStart, input.rangeEnd)}`
   ]
 
-  const amountsByCategory = new Map<string, number[]>()
+  const itemsByCategory = new Map<string, WeeklySummaryItem[]>()
   for (const item of input.items) {
-    const amounts = amountsByCategory.get(item.categoryName)
-    if (amounts) amounts.push(item.amount)
-    else amountsByCategory.set(item.categoryName, [item.amount])
+    const items = itemsByCategory.get(item.categoryName)
+    if (items) items.push(item)
+    else itemsByCategory.set(item.categoryName, [item])
   }
 
   for (const c of input.byCategory) {
-    const amounts = amountsByCategory.get(c.name) ?? []
-    lines.push(`${c.name} ${amounts.map(formatPlainNumber).join('+')}`)
+    const items = itemsByCategory.get(c.name) ?? []
+    if (c.name === OTHER_CATEGORY_NAME) {
+      for (const item of items) {
+        lines.push(`${item.description} ${formatPlainNumber(item.amount)}`)
+      }
+    } else {
+      lines.push(`${c.name} ${items.map((item) => formatPlainNumber(item.amount)).join('+')}`)
+    }
   }
 
   lines.push(`รวม ${formatPlainNumber(input.total)}`)
