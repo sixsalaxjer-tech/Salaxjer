@@ -40,16 +40,16 @@ export interface WeeklySummaryDetailedTextInput {
   rangeEnd: string
 }
 
-/** Category whose items are listed individually rather than summed onto one line (see below). */
-const OTHER_CATEGORY_NAME = 'อื่นๆ'
+/** The only categories shown as a single "name total" line; every other category is itemized. */
+const SUMMED_CATEGORY_NAMES = new Set(['อาหาร', 'เดินทาง'])
 
 /**
  * A second text format offered alongside buildWeeklySummaryText, for the user to share to LINE:
- * a header naming the week's date range, one line per category listing that category's individual
- * item amounts joined by "+" (in item order), and a final "รวม" grand-total line. The "อื่นๆ" (Other)
- * category is the exception: since its items are usually unrelated one-offs, each is listed on its
- * own line as "description amount" instead of being summed together. Pure and DB-free; the caller
- * resolves category names before calling this.
+ * a header naming the week's date range, then one line per category, and a final "รวม" grand-total
+ * line. "อาหาร" and "เดินทาง" are dense, everyday categories, so they collapse to one
+ * "name total" line; every other category's items are one-off enough to want the detail, so each
+ * item gets its own "name description amount" line instead of being summed together. Pure and
+ * DB-free; the caller resolves category names before calling this.
  */
 export function buildWeeklySummaryDetailedText(input: WeeklySummaryDetailedTextInput): string {
   const lines: string[] = [
@@ -64,13 +64,13 @@ export function buildWeeklySummaryDetailedText(input: WeeklySummaryDetailedTextI
   }
 
   for (const c of input.byCategory) {
+    if (SUMMED_CATEGORY_NAMES.has(c.name)) {
+      lines.push(`${c.name} ${formatPlainNumber(c.total)}`)
+      continue
+    }
     const items = itemsByCategory.get(c.name) ?? []
-    if (c.name === OTHER_CATEGORY_NAME) {
-      for (const item of items) {
-        lines.push(`${item.description} ${formatPlainNumber(item.amount)}`)
-      }
-    } else {
-      lines.push(`${c.name} ${items.map((item) => formatPlainNumber(item.amount)).join('+')}`)
+    for (const item of items) {
+      lines.push(`${c.name} ${item.description} ${formatPlainNumber(item.amount)}`)
     }
   }
 

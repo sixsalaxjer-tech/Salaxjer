@@ -41,48 +41,43 @@ describe('buildWeeklySummaryText', () => {
 })
 
 describe('buildWeeklySummaryDetailedText', () => {
-  it('builds a header with the date range, one "Category amt+amt" line per category, and a รวม total', () => {
+  it('matches the requested format: อาหาร/เดินทาง collapse to one total line, every other category is itemized as "name description amount"', () => {
     const text = buildWeeklySummaryDetailedText({
-      total: 1150,
-      rangeStart: '2026-09-14',
-      rangeEnd: '2026-09-20',
-      byCategory: [
-        { name: 'อาหาร', total: 850 },
-        { name: 'เดินทาง', total: 300 }
-      ],
-      items: [
-        { amount: 500, description: 'มื้อเช้า', categoryName: 'อาหาร' },
-        { amount: 350, description: 'มื้อเย็น', categoryName: 'อาหาร' },
-        { amount: 300, description: 'แท็กซี่', categoryName: 'เดินทาง' }
-      ]
-    })
-
-    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อาหาร 500+350', 'เดินทาง 300', 'รวม 1,150'].join('\n'))
-  })
-
-  it('lists each item in the อื่นๆ category on its own "description amount" line instead of summing them', () => {
-    const text = buildWeeklySummaryDetailedText({
-      total: 750,
+      total: 2814,
       rangeStart: '2026-09-21',
       rangeEnd: '2026-09-27',
       byCategory: [
-        { name: 'อาหาร', total: 100 },
-        { name: 'อื่นๆ', total: 650 }
+        { name: 'อาหาร', total: 1302 },
+        { name: 'บ้าน', total: 895 },
+        { name: 'เสื้อผ้า', total: 195 },
+        { name: 'สุขภาพและความงาม', total: 291 },
+        { name: 'สาธารณูปโภค', total: 36 },
+        { name: 'เดินทาง', total: 95 }
       ],
       items: [
-        { amount: 100, description: 'ข้าวกลางวัน', categoryName: 'อาหาร' },
-        { amount: 450, description: 'เครื่องเป่าลม', categoryName: 'อื่นๆ' },
-        { amount: 200, description: 'water pump', categoryName: 'อื่นๆ' }
+        { amount: 152, description: 'Pipeline', categoryName: 'บ้าน' },
+        { amount: 180, description: 'ตะไบ', categoryName: 'บ้าน' },
+        { amount: 410, description: 'Water Pump', categoryName: 'บ้าน' },
+        { amount: 153, description: 'Waterproof tape', categoryName: 'บ้าน' },
+        { amount: 195, description: 'Jersey', categoryName: 'เสื้อผ้า' },
+        { amount: 291, description: 'เครื่องเป่าลมร้อน', categoryName: 'สุขภาพและความงาม' },
+        { amount: 36, description: 'ค่าน้ำ', categoryName: 'สาธารณูปโภค' }
       ]
     })
 
     expect(text).toBe(
       [
         'รายละเอียดรายการ วันที่ 21-27 ก.ย.',
-        'อาหาร 100',
-        'เครื่องเป่าลม 450',
-        'water pump 200',
-        'รวม 750'
+        'อาหาร 1,302',
+        'บ้าน Pipeline 152',
+        'บ้าน ตะไบ 180',
+        'บ้าน Water Pump 410',
+        'บ้าน Waterproof tape 153',
+        'เสื้อผ้า Jersey 195',
+        'สุขภาพและความงาม เครื่องเป่าลมร้อน 291',
+        'สาธารณูปโภค ค่าน้ำ 36',
+        'เดินทาง 95',
+        'รวม 2,814'
       ].join('\n')
     )
   })
@@ -99,24 +94,24 @@ describe('buildWeeklySummaryDetailedText', () => {
     expect(text.split('\n')[0]).toBe('รายละเอียดรายการ วันที่ 31 ส.ค.-6 ก.ย.')
   })
 
-  it('shows an empty amount list for a regular category with no items in range', () => {
+  it('shows a zero total line for อาหาร/เดินทาง with no items in range', () => {
     const text = buildWeeklySummaryDetailedText({
-      total: 100,
+      total: 0,
       rangeStart: '2026-09-14',
       rangeEnd: '2026-09-20',
-      byCategory: [{ name: 'อาหาร', total: 100 }],
+      byCategory: [{ name: 'อาหาร', total: 0 }],
       items: []
     })
 
-    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อาหาร ', 'รวม 100'].join('\n'))
+    expect(text).toBe(['รายละเอียดรายการ วันที่ 14-20 ก.ย.', 'อาหาร 0', 'รวม 0'].join('\n'))
   })
 
-  it('produces no lines for an อื่นๆ category with no items in range', () => {
+  it('produces no lines for a non-summed category with no items in range', () => {
     const text = buildWeeklySummaryDetailedText({
       total: 100,
       rangeStart: '2026-09-14',
       rangeEnd: '2026-09-20',
-      byCategory: [{ name: 'อื่นๆ', total: 100 }],
+      byCategory: [{ name: 'บ้าน', total: 100 }],
       items: []
     })
 
