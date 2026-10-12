@@ -61,19 +61,24 @@ export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
 }
 
 /**
- * The detailed text format: every item on its own
- * "name description amount" line, grouped by category (in byCategory order). No per-category
- * collapsing and no grand total. Pure and DB-free.
+ * The detailed text format: one "name description amount" line per distinct item, grouped by
+ * category (in byCategory order). Repeats of the same description within a category are joined
+ * onto one line as "amount+amount". No per-category collapsing and no grand total. Pure and DB-free.
  */
 export function buildWeeklySummaryDetailedText(
   input: Pick<WeeklySummaryTextInput, 'byCategory' | 'items'>
 ): string {
   const lines: string[] = []
   for (const c of input.byCategory) {
+    const amountsByDescription = new Map<string, number[]>()
     for (const item of input.items) {
-      if (item.categoryName === c.name) {
-        lines.push(`${c.name} ${item.description} ${formatPlainNumber(item.amount)}`)
-      }
+      if (item.categoryName !== c.name) continue
+      const amounts = amountsByDescription.get(item.description)
+      if (amounts) amounts.push(item.amount)
+      else amountsByDescription.set(item.description, [item.amount])
+    }
+    for (const [description, amounts] of amountsByDescription) {
+      lines.push(`${c.name} ${description} ${amounts.map(formatPlainNumber).join('+')}`)
     }
   }
   return lines.join('\n')

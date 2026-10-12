@@ -107,4 +107,25 @@ describe('buildWeeklySummaryDetailedText', () => {
       ].join('\n')
     )
   })
+
+
+  it('joins repeated descriptions within a category with +', () => {
+    const text = buildWeeklySummaryDetailedText({
+      byCategory: [
+        { name: 'อาหาร', total: 351 },
+        { name: 'เดินทาง', total: 30 }
+      ],
+      items: [
+        { amount: 89, description: '7-11', categoryName: 'อาหาร' },
+        { amount: 15, description: 'Motorcycle taxi', categoryName: 'เดินทาง' },
+        { amount: 99, description: 'Bakery', categoryName: 'อาหาร' },
+        { amount: 168, description: '7-11', categoryName: 'อาหาร' },
+        { amount: 15, description: 'Motorcycle taxi', categoryName: 'เดินทาง' }
+      ]
+    })
+
+    expect(text).toBe(
+      ['อาหาร 7-11 89+168', 'อาหาร Bakery 99', 'เดินทาง Motorcycle taxi 15+15'].join('\n')
+    )
+  })
 })
