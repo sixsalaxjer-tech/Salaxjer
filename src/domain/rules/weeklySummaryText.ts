@@ -6,33 +6,13 @@ export interface WeeklySummaryLine {
   total: number
 }
 
-export interface WeeklySummaryTextInput {
-  total: number
-  byCategory: WeeklySummaryLine[]
-}
-
-/**
- * Builds a plain-text expense summary formatted for pasting into a chat app (e.g. LINE), per the
- * user's requested format: one "Category: Amount" line per category, in the given order, followed
- * by a "Total: Amount" line. Pure and DB-free so it's independently testable; the caller resolves
- * category names before calling this.
- */
-export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
-  const lines: string[] = []
-  for (const c of input.byCategory) {
-    lines.push(`${c.name}: ${formatPlainNumber(c.total)}`)
-  }
-  lines.push(`Total: ${formatPlainNumber(input.total)}`)
-  return lines.join('\n')
-}
-
 export interface WeeklySummaryItem {
   categoryName: string
   description: string
   amount: number
 }
 
-export interface WeeklySummaryDetailedTextInput {
+export interface WeeklySummaryTextInput {
   total: number
   byCategory: WeeklySummaryLine[]
   items: WeeklySummaryItem[]
@@ -43,18 +23,20 @@ export interface WeeklySummaryDetailedTextInput {
 /** The only categories shown as a single "name total" line; every other category is itemized. */
 const SUMMED_CATEGORY_NAMES = new Set(['อาหาร', 'เดินทาง'])
 
+function buildHeader(rangeStart: string, rangeEnd: string): string {
+  return `รายละเอียดรายการ วันที่ ${formatWeekRangeThaiCompact(rangeStart, rangeEnd)}`
+}
+
 /**
- * A second text format offered alongside buildWeeklySummaryText, for the user to share to LINE:
+ * The short text format, for the user to share to LINE:
  * a header naming the week's date range, then one line per category, and a final "รวม" grand-total
  * line. "อาหาร" and "เดินทาง" are dense, everyday categories, so they collapse to one
  * "name total" line; every other category's items are one-off enough to want the detail, so each
  * item gets its own "name description amount" line instead of being summed together. Pure and
  * DB-free; the caller resolves category names before calling this.
  */
-export function buildWeeklySummaryDetailedText(input: WeeklySummaryDetailedTextInput): string {
-  const lines: string[] = [
-    `รายละเอียดรายการ วันที่ ${formatWeekRangeThaiCompact(input.rangeStart, input.rangeEnd)}`
-  ]
+export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
+  const lines: string[] = [buildHeader(input.rangeStart, input.rangeEnd)]
 
   const itemsByCategory = new Map<string, WeeklySummaryItem[]>()
   for (const item of input.items) {
@@ -75,5 +57,24 @@ export function buildWeeklySummaryDetailedText(input: WeeklySummaryDetailedTextI
   }
 
   lines.push(`รวม ${formatPlainNumber(input.total)}`)
+  return lines.join('\n')
+}
+
+/**
+ * The detailed text format: every item on its own
+ * "name description amount" line, grouped by category (in byCategory order). No per-category
+ * collapsing and no grand total. Pure and DB-free.
+ */
+export function buildWeeklySummaryDetailedText(
+  input: Pick<WeeklySummaryTextInput, 'byCategory' | 'items'>
+): string {
+  const lines: string[] = []
+  for (const c of input.byCategory) {
+    for (const item of input.items) {
+      if (item.categoryName === c.name) {
+        lines.push(`${c.name} ${item.description} ${formatPlainNumber(item.amount)}`)
+      }
+    }
+  }
   return lines.join('\n')
 }

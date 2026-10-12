@@ -17,7 +17,8 @@ const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard?.write
 /**
  * Weekly plain-text expense summary, meant to be shared into a chat app (e.g. LINE) by hand —
  * requested as a lightweight alternative to a full export. Offers a choice between a short
- * category/total format and a detailed one with a per-item breakdown, kept as separate builders
+ * short format (อาหาร/เดินทาง summed, the rest itemized, with a total) and a detailed one listing
+ * every item grouped by category, kept as separate builders
  * (see weeklySummaryText.ts) rather than merged into one. Uses the Web Share API when the
  * browser/OS supports it (opens the native share sheet, which lists LINE if installed), and
  * always offers "copy to clipboard" as a universally-supported fallback.
@@ -79,24 +80,20 @@ export function WeeklySummaryCard() {
       return { name: category?.name ?? 'ไม่ระบุหมวดหมู่', total: c.total }
     })
 
+    const items = breakdown.items.map((e) => {
+      const category = categories.find((x) => x.categoryId === e.categoryId)
+      return {
+        amount: e.amount,
+        description: e.description,
+        categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่'
+      }
+    })
+
     if (format === 'simple') {
-      return buildWeeklySummaryText({ total: breakdown.total, byCategory })
+      return buildWeeklySummaryText({ total: breakdown.total, byCategory, rangeStart, rangeEnd, items })
     }
 
-    return buildWeeklySummaryDetailedText({
-      total: breakdown.total,
-      byCategory,
-      rangeStart,
-      rangeEnd,
-      items: breakdown.items.map((e) => {
-        const category = categories.find((x) => x.categoryId === e.categoryId)
-        return {
-          amount: e.amount,
-          description: e.description,
-          categoryName: category?.name ?? 'ไม่ระบุหมวดหมู่'
-        }
-      })
-    })
+    return buildWeeklySummaryDetailedText({ byCategory, items })
   }, [breakdown, categories, format, rangeStart, rangeEnd])
 
   async function handleShare() {
