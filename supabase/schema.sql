@@ -113,6 +113,39 @@ create table if not exists week_settlements (
   updated_at timestamptz not null default now()
 );
 
+-- Credit cards and their bill payments. Expenses reference a card via expenses.credit_card_id
+-- (added below). That column deliberately has no foreign key: the client pushes expenses and
+-- cards independently, and an offline-created card may reach the server after its expenses.
+create table if not exists credit_cards (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id) on delete cascade,
+  name text not null,
+  last4 text,
+  owner_member_id uuid,
+  statement_day int not null check (statement_day between 1 and 31),
+  due_day int not null check (due_day between 1 and 31),
+  credit_limit numeric(14, 2),
+  color text not null default '#2563eb',
+  status text not null default 'active',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists card_payments (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id) on delete cascade,
+  credit_card_id uuid not null,
+  amount numeric(14, 2) not null,
+  payment_date date not null,
+  note text,
+  status text not null default 'confirmed',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- For databases created before credit cards existed (create-if-not-exists above won't add it).
+alter table expenses add column if not exists credit_card_id uuid;
+
 create table if not exists audit_logs (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references households(id) on delete cascade,
@@ -154,6 +187,8 @@ alter table expenses enable row level security;
 alter table expense_allocations enable row level security;
 alter table settlements enable row level security;
 alter table week_settlements enable row level security;
+alter table credit_cards enable row level security;
+alter table card_payments enable row level security;
 alter table audit_logs enable row level security;
 
 drop policy if exists household_select on households;
@@ -214,6 +249,16 @@ create policy settlements_all on settlements for all
 
 drop policy if exists week_settlements_all on week_settlements;
 create policy week_settlements_all on week_settlements for all
+  using (household_id in (select household_id from household_members where user_id = auth.uid()))
+  with check (household_id in (select household_id from household_members where user_id = auth.uid()));
+
+drop policy if exists credit_cards_all on credit_cards;
+create policy credit_cards_all on credit_cards for all
+  using (household_id in (select household_id from household_members where user_id = auth.uid()))
+  with check (household_id in (select household_id from household_members where user_id = auth.uid()));
+
+drop policy if exists card_payments_all on card_payments;
+create policy card_payments_all on card_payments for all
   using (household_id in (select household_id from household_members where user_id = auth.uid()))
   with check (household_id in (select household_id from household_members where user_id = auth.uid()));
 
@@ -287,7 +332,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['households', 'members', 'categories', 'expenses', 'expense_allocations', 'settlements', 'week_settlements']
+  foreach t in array array['households', 'members', 'categories', 'expenses', 'expense_allocations', 'settlements', 'week_settlements', 'credit_cards', 'card_payments']
   loop
     if not exists (
       select 1 from pg_publication_tables

@@ -4,9 +4,13 @@ import { db } from '@/infrastructure/db/db'
 import { logger } from '@/infrastructure/logging/logger'
 import {
   allocationToDb,
+  cardPaymentToDb,
   categoryToDb,
+  creditCardToDb,
   dbToAllocation,
+  dbToCardPayment,
   dbToCategory,
+  dbToCreditCard,
   dbToExpense,
   dbToHousehold,
   dbToMember,
@@ -19,7 +23,9 @@ import {
   weekSettlementToDb
 } from '@/infrastructure/sync/mappers'
 import type {
+  CardPayment,
   Category,
+  CreditCard,
   Expense,
   ExpenseAllocation,
   Household,
@@ -98,6 +104,14 @@ export async function pushWeekSettlement(w: WeekSettlement): Promise<void> {
   await safeUpsert('week_settlements', [weekSettlementToDb(w)])
 }
 
+export async function pushCreditCard(c: CreditCard): Promise<void> {
+  await safeUpsert('credit_cards', [creditCardToDb(c)])
+}
+
+export async function pushCardPayment(p: CardPayment): Promise<void> {
+  await safeUpsert('card_payments', [cardPaymentToDb(p)])
+}
+
 /**
  * Pushes an expense and its allocations together, then marks the local row 'synced' on success.
  * updateExpense always replaces an expense's allocations with a fresh set of rows (new
@@ -122,6 +136,10 @@ export async function pushExpense(expense: Expense, allocations: ExpenseAllocati
 /** Re-pushes any local expenses not yet confirmed synced — run on app start and on 'online'. */
 export async function catchUpPendingPushes(householdId: string): Promise<void> {
   if (!isEnabled()) return
+  // Cards and payments carry no per-row sync status, so re-push them all (idempotent upserts of a
+  // handful of rows). Cards go first so an expense never references a card the server hasn't seen.
+  await safeUpsert('credit_cards', (await db.creditCards.where('householdId').equals(householdId).toArray()).map(creditCardToDb))
+  await safeUpsert('card_payments', (await db.cardPayments.where('householdId').equals(householdId).toArray()).map(cardPaymentToDb))
   const pending = await db.expenses
     .where('householdId')
     .equals(householdId)
@@ -150,13 +168,24 @@ export async function replacePulledAllocations(expenseIds: string[], rows: Expen
 export async function pullAll(householdId: string): Promise<void> {
   if (!supabase) return
   try {
-    const [householdRes, membersRes, categoriesRes, expensesRes, settlementsRes, weekSettlementsRes] = await Promise.all([
+    const [
+      householdRes,
+      membersRes,
+      categoriesRes,
+      expensesRes,
+      settlementsRes,
+      weekSettlementsRes,
+      creditCardsRes,
+      cardPaymentsRes
+    ] = await Promise.all([
       supabase.from('households').select('*').eq('id', householdId).maybeSingle(),
       supabase.from('members').select('*').eq('household_id', householdId),
       supabase.from('categories').select('*').eq('household_id', householdId),
       supabase.from('expenses').select('*').eq('household_id', householdId),
       supabase.from('settlements').select('*').eq('household_id', householdId),
-      supabase.from('week_settlements').select('*').eq('household_id', householdId)
+      supabase.from('week_settlements').select('*').eq('household_id', householdId),
+      supabase.from('credit_cards').select('*').eq('household_id', householdId),
+      supabase.from('card_payments').select('*').eq('household_id', householdId)
     ])
 
     if (householdRes.data) await db.households.put(dbToHousehold(householdRes.data))
@@ -165,6 +194,8 @@ export async function pullAll(householdId: string): Promise<void> {
     if (expensesRes.data) await db.expenses.bulkPut(expensesRes.data.map(dbToExpense))
     if (settlementsRes.data) await db.settlements.bulkPut(settlementsRes.data.map(dbToSettlement))
     if (weekSettlementsRes.data) await db.weekSettlements.bulkPut(weekSettlementsRes.data.map(dbToWeekSettlement))
+    if (creditCardsRes.data) await db.creditCards.bulkPut(creditCardsRes.data.map(dbToCreditCard))
+    if (cardPaymentsRes.data) await db.cardPayments.bulkPut(cardPaymentsRes.data.map(dbToCardPayment))
 
     const expenseIds = (expensesRes.data ?? []).map((e) => e.id as string)
     if (expenseIds.length > 0) {
@@ -211,6 +242,14 @@ export function startRealtimeSync(householdId: string): void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'week_settlements', filter: `household_id=eq.${householdId}` }, (payload) => {
       if (payload.eventType === 'DELETE') return
       void db.weekSettlements.put(dbToWeekSettlement(payload.new as Record<string, unknown>))
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'credit_cards', filter: `household_id=eq.${householdId}` }, (payload) => {
+      if (payload.eventType === 'DELETE') return
+      void db.creditCards.put(dbToCreditCard(payload.new as Record<string, unknown>))
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'card_payments', filter: `household_id=eq.${householdId}` }, (payload) => {
+      if (payload.eventType === 'DELETE') return
+      void db.cardPayments.put(dbToCardPayment(payload.new as Record<string, unknown>))
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'households', filter: `id=eq.${householdId}` }, (payload) => {
       if (payload.eventType === 'DELETE') return

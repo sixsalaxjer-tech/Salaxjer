@@ -2,7 +2,9 @@
 // snake_case rows used by the Supabase schema (supabase/schema.sql). Kept as pure, isolated
 // functions so the sync engine and its tests never touch raw column names directly.
 import type {
+  CardPayment,
   Category,
+  CreditCard,
   Expense,
   ExpenseAllocation,
   Household,
@@ -105,7 +107,8 @@ export function expenseToDb(e: Expense) {
     version: e.version,
     deleted_at: e.deletedAt ?? null,
     idempotency_key: e.idempotencyKey,
-    adjustment_reason: e.adjustmentReason ?? null
+    adjustment_reason: e.adjustmentReason ?? null,
+    credit_card_id: e.creditCardId ?? null
   }
 }
 
@@ -127,7 +130,68 @@ export function dbToExpense(row: Record<string, unknown>): Expense {
     version: row.version as number,
     deletedAt: (row.deleted_at as string) ?? undefined,
     idempotencyKey: row.idempotency_key as string,
-    adjustmentReason: (row.adjustment_reason as string) ?? undefined
+    adjustmentReason: (row.adjustment_reason as string) ?? undefined,
+    creditCardId: (row.credit_card_id as string) ?? undefined
+  }
+}
+
+export function creditCardToDb(c: CreditCard) {
+  return {
+    id: c.creditCardId,
+    household_id: c.householdId,
+    name: c.name,
+    last4: c.last4 ?? null,
+    owner_member_id: c.ownerMemberId ?? null,
+    statement_day: c.statementDay,
+    due_day: c.dueDay,
+    credit_limit: c.creditLimit ?? null,
+    color: c.color,
+    status: c.status,
+    updated_at: c.updatedAt
+  }
+}
+
+export function dbToCreditCard(row: Record<string, unknown>): CreditCard {
+  return {
+    creditCardId: row.id as string,
+    householdId: row.household_id as string,
+    name: row.name as string,
+    last4: (row.last4 as string) ?? undefined,
+    ownerMemberId: (row.owner_member_id as string) ?? undefined,
+    statementDay: row.statement_day as number,
+    dueDay: row.due_day as number,
+    creditLimit: row.credit_limit === null || row.credit_limit === undefined ? undefined : Number(row.credit_limit),
+    color: row.color as string,
+    status: row.status as CreditCard['status'],
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+export function cardPaymentToDb(p: CardPayment) {
+  return {
+    id: p.cardPaymentId,
+    household_id: p.householdId,
+    credit_card_id: p.creditCardId,
+    amount: p.amount,
+    payment_date: p.paymentDate,
+    note: p.note ?? null,
+    status: p.status,
+    updated_at: p.updatedAt
+  }
+}
+
+export function dbToCardPayment(row: Record<string, unknown>): CardPayment {
+  return {
+    cardPaymentId: row.id as string,
+    householdId: row.household_id as string,
+    creditCardId: row.credit_card_id as string,
+    amount: Number(row.amount),
+    paymentDate: row.payment_date as string,
+    note: (row.note as string) ?? undefined,
+    status: row.status as CardPayment['status'],
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
   }
 }
 

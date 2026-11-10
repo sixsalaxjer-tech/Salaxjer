@@ -3,6 +3,8 @@ import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
 import { nowIso, isValidIsoDate } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
+import { APP_CONFIG } from '@/shared/constants/config'
+import { pushCardPayment, pushCreditCard } from '@/infrastructure/sync/syncEngine'
 import type { CardPayment, CreditCard } from '@/domain/entities/types'
 
 export interface CreditCardInput {
@@ -59,15 +61,16 @@ export async function addCreditCard(householdId: string, input: CreditCardInput)
       details: { name: card.name }
     })
   })
+  if (APP_CONFIG.syncEnabled) void pushCreditCard(card)
   return card
 }
 
 export async function updateCreditCard(creditCardId: string, input: CreditCardInput): Promise<void> {
   validate(input)
-  await db.transaction('rw', db.creditCards, db.auditLogs, async () => {
+  const updated = await db.transaction('rw', db.creditCards, db.auditLogs, async () => {
     const existing = await db.creditCards.get(creditCardId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบบัตร')
-    await db.creditCards.put({
+    const next: CreditCard = {
       ...existing,
       name: input.name.trim(),
       last4: input.last4 || undefined,
@@ -76,7 +79,8 @@ export async function updateCreditCard(creditCardId: string, input: CreditCardIn
       dueDay: input.dueDay,
       creditLimit: input.creditLimit,
       updatedAt: nowIso()
-    })
+    }
+    await db.creditCards.put(next)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'credit_card',
@@ -84,15 +88,18 @@ export async function updateCreditCard(creditCardId: string, input: CreditCardIn
       action: 'update_credit_card',
       details: { name: input.name.trim() }
     })
+    return next
   })
+  if (APP_CONFIG.syncEnabled) void pushCreditCard(updated)
 }
 
 /** Cards are never hard-deleted: expenses and payments keep pointing at them. */
 export async function setCreditCardActive(creditCardId: string, active: boolean): Promise<void> {
-  await db.transaction('rw', db.creditCards, db.auditLogs, async () => {
+  const updated = await db.transaction('rw', db.creditCards, db.auditLogs, async () => {
     const existing = await db.creditCards.get(creditCardId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบบัตร')
-    await db.creditCards.put({ ...existing, status: active ? 'active' : 'inactive', updatedAt: nowIso() })
+    const next: CreditCard = { ...existing, status: active ? 'active' : 'inactive', updatedAt: nowIso() }
+    await db.creditCards.put(next)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'credit_card',
@@ -100,7 +107,9 @@ export async function setCreditCardActive(creditCardId: string, active: boolean)
       action: active ? 'reactivate_credit_card' : 'deactivate_credit_card',
       details: { name: existing.name }
     })
+    return next
   })
+  if (APP_CONFIG.syncEnabled) void pushCreditCard(updated)
 }
 
 export async function recordCardPayment(input: {
@@ -112,7 +121,7 @@ export async function recordCardPayment(input: {
   if (!Number.isFinite(input.amount) || input.amount <= 0 || !isValidIsoDate(input.paymentDate)) {
     throw new AppError('VALIDATION_ERROR', 'กรุณาระบุจำนวนเงินและวันที่ให้ถูกต้อง')
   }
-  return db.transaction('rw', db.creditCards, db.cardPayments, db.auditLogs, async () => {
+  const created = await db.transaction('rw', db.creditCards, db.cardPayments, db.auditLogs, async () => {
     const card = await db.creditCards.get(input.creditCardId)
     if (!card) throw new AppError('NOT_FOUND', 'ไม่พบบัตร')
     const now = nowIso()
@@ -137,14 +146,17 @@ export async function recordCardPayment(input: {
     })
     return payment
   })
+  if (APP_CONFIG.syncEnabled) void pushCardPayment(created)
+  return created
 }
 
 export async function voidCardPayment(cardPaymentId: string): Promise<void> {
-  await db.transaction('rw', db.cardPayments, db.auditLogs, async () => {
+  const voided = await db.transaction('rw', db.cardPayments, db.auditLogs, async () => {
     const existing = await db.cardPayments.get(cardPaymentId)
     if (!existing) throw new AppError('NOT_FOUND', 'ไม่พบรายการชำระ')
-    if (existing.status === 'voided') return
-    await db.cardPayments.put({ ...existing, status: 'voided', updatedAt: nowIso() })
+    if (existing.status === 'voided') return undefined
+    const next: CardPayment = { ...existing, status: 'voided', updatedAt: nowIso() }
+    await db.cardPayments.put(next)
     await recordAudit(db.auditLogs, {
       householdId: existing.householdId,
       entityType: 'card_payment',
@@ -152,5 +164,7 @@ export async function voidCardPayment(cardPaymentId: string): Promise<void> {
       action: 'void_card_payment',
       details: { amount: existing.amount }
     })
+    return next
   })
+  if (voided && APP_CONFIG.syncEnabled) void pushCardPayment(voided)
 }

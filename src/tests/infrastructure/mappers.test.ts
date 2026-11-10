@@ -138,3 +138,41 @@ describe('sync mappers round-trip', () => {
     expect(dbToWeekSettlement(row)).toEqual(w)
   })
 })
+
+describe('credit card mappers', () => {
+  it('round-trips a credit card', async () => {
+    const { creditCardToDb, dbToCreditCard } = await import('@/infrastructure/sync/mappers')
+    const card = {
+      creditCardId: 'c1',
+      householdId: 'h1',
+      name: 'UOB',
+      last4: '2989',
+      statementDay: 10,
+      dueDay: 25,
+      creditLimit: 171251,
+      color: '#2563eb',
+      status: 'active' as const,
+      createdAt: '2026-11-10T00:00:00Z',
+      updatedAt: '2026-11-10T00:00:00Z'
+    }
+    expect(dbToCreditCard({ ...creditCardToDb(card), created_at: card.createdAt })).toEqual(card)
+  })
+
+  it('round-trips a card payment and an expense card link', async () => {
+    const { cardPaymentToDb, dbToCardPayment, expenseToDb, dbToExpense } = await import('@/infrastructure/sync/mappers')
+    const p = {
+      cardPaymentId: 'p1',
+      householdId: 'h1',
+      creditCardId: 'c1',
+      amount: 500,
+      paymentDate: '2026-11-10',
+      status: 'confirmed' as const,
+      createdAt: 'x',
+      updatedAt: 'y'
+    }
+    expect(dbToCardPayment({ ...cardPaymentToDb(p), created_at: 'x' })).toEqual(p)
+    const row = expenseToDb({ creditCardId: 'c1', tags: [], idempotencyKey: 'k' } as never)
+    expect(row.credit_card_id).toBe('c1')
+    expect(dbToExpense({ ...row, id: 'e', amount: 1 }).creditCardId).toBe('c1')
+  })
+})
