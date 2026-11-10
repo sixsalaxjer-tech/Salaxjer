@@ -13,6 +13,8 @@ import {
   dbToCreditCard,
   dbToExpense,
   dbToHousehold,
+  dbToMerchantRule,
+  merchantRuleToDb,
   dbToMember,
   dbToSettlement,
   dbToWeekSettlement,
@@ -29,6 +31,7 @@ import type {
   Expense,
   ExpenseAllocation,
   Household,
+  MerchantRule,
   Member,
   Settlement,
   WeekSettlement
@@ -108,6 +111,10 @@ export async function pushCreditCard(c: CreditCard): Promise<void> {
   await safeUpsert('credit_cards', [creditCardToDb(c)])
 }
 
+export async function pushMerchantRule(r: MerchantRule): Promise<void> {
+  await safeUpsert('merchant_rules', [merchantRuleToDb(r)])
+}
+
 export async function pushCardPayment(p: CardPayment): Promise<void> {
   await safeUpsert('card_payments', [cardPaymentToDb(p)])
 }
@@ -140,6 +147,7 @@ export async function catchUpPendingPushes(householdId: string): Promise<void> {
   // handful of rows). Cards go first so an expense never references a card the server hasn't seen.
   await safeUpsert('credit_cards', (await db.creditCards.where('householdId').equals(householdId).toArray()).map(creditCardToDb))
   await safeUpsert('card_payments', (await db.cardPayments.where('householdId').equals(householdId).toArray()).map(cardPaymentToDb))
+  await safeUpsert('merchant_rules', (await db.merchantRules.where('householdId').equals(householdId).toArray()).map(merchantRuleToDb))
   const pending = await db.expenses
     .where('householdId')
     .equals(householdId)
@@ -176,7 +184,8 @@ export async function pullAll(householdId: string): Promise<void> {
       settlementsRes,
       weekSettlementsRes,
       creditCardsRes,
-      cardPaymentsRes
+      cardPaymentsRes,
+      merchantRulesRes
     ] = await Promise.all([
       supabase.from('households').select('*').eq('id', householdId).maybeSingle(),
       supabase.from('members').select('*').eq('household_id', householdId),
@@ -185,7 +194,8 @@ export async function pullAll(householdId: string): Promise<void> {
       supabase.from('settlements').select('*').eq('household_id', householdId),
       supabase.from('week_settlements').select('*').eq('household_id', householdId),
       supabase.from('credit_cards').select('*').eq('household_id', householdId),
-      supabase.from('card_payments').select('*').eq('household_id', householdId)
+      supabase.from('card_payments').select('*').eq('household_id', householdId),
+      supabase.from('merchant_rules').select('*').eq('household_id', householdId)
     ])
 
     if (householdRes.data) await db.households.put(dbToHousehold(householdRes.data))
@@ -196,6 +206,7 @@ export async function pullAll(householdId: string): Promise<void> {
     if (weekSettlementsRes.data) await db.weekSettlements.bulkPut(weekSettlementsRes.data.map(dbToWeekSettlement))
     if (creditCardsRes.data) await db.creditCards.bulkPut(creditCardsRes.data.map(dbToCreditCard))
     if (cardPaymentsRes.data) await db.cardPayments.bulkPut(cardPaymentsRes.data.map(dbToCardPayment))
+    if (merchantRulesRes.data) await db.merchantRules.bulkPut(merchantRulesRes.data.map(dbToMerchantRule))
 
     const expenseIds = (expensesRes.data ?? []).map((e) => e.id as string)
     if (expenseIds.length > 0) {
@@ -250,6 +261,10 @@ export function startRealtimeSync(householdId: string): void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'card_payments', filter: `household_id=eq.${householdId}` }, (payload) => {
       if (payload.eventType === 'DELETE') return
       void db.cardPayments.put(dbToCardPayment(payload.new as Record<string, unknown>))
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_rules', filter: `household_id=eq.${householdId}` }, (payload) => {
+      if (payload.eventType === 'DELETE') return
+      void db.merchantRules.put(dbToMerchantRule(payload.new as Record<string, unknown>))
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'households', filter: `id=eq.${householdId}` }, (payload) => {
       if (payload.eventType === 'DELETE') return

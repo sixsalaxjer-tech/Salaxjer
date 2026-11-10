@@ -54,6 +54,7 @@ async function collectData(householdId: string): Promise<BackupData> {
   data.weekSettlements = await db.weekSettlements.where('householdId').equals(householdId).toArray()
   data.creditCards = await db.creditCards.where('householdId').equals(householdId).toArray()
   data.cardPayments = await db.cardPayments.where('householdId').equals(householdId).toArray()
+  data.merchantRules = await db.merchantRules.where('householdId').equals(householdId).toArray()
   data.auditLogs = await db.auditLogs.where('householdId').equals(householdId).toArray()
   // ExpenseAllocation has no householdId column of its own — it's scoped via its parent Expense.
   const expenseIds = data.expenses.map((e) => (e as { expenseId: string }).expenseId)
@@ -196,6 +197,7 @@ export async function importBackup(
         db.weekSettlements,
         db.creditCards,
         db.cardPayments,
+        db.merchantRules,
         db.auditLogs,
         db.restorePoints
       ],
@@ -212,6 +214,7 @@ export async function importBackup(
           await db.weekSettlements.where('householdId').equals(householdId).delete()
           await db.creditCards.where('householdId').equals(householdId).delete()
           await db.cardPayments.where('householdId').equals(householdId).delete()
+          await db.merchantRules.where('householdId').equals(householdId).delete()
 
           for (const t of ALL_TABLE_NAMES) {
             const rows = (data[t] ?? []) as { householdId?: string }[]
@@ -231,6 +234,7 @@ export async function importBackup(
             weekSettlements: 'weekSettlementId',
             creditCards: 'creditCardId',
             cardPayments: 'cardPaymentId',
+            merchantRules: 'merchantRuleId',
             auditLogs: 'auditLogId'
           }
           for (const t of ALL_TABLE_NAMES) {

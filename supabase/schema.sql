@@ -143,6 +143,19 @@ create table if not exists card_payments (
   updated_at timestamptz not null default now()
 );
 
+-- Master list classifying card merchants (keyword -> category/description). category_id has no
+-- foreign key for the same reason as expenses.credit_card_id: independent, offline-first pushes.
+create table if not exists merchant_rules (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id) on delete cascade,
+  keyword text not null,
+  description text,
+  category_id uuid not null,
+  status text not null default 'active',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- For databases created before credit cards existed (create-if-not-exists above won't add it).
 alter table expenses add column if not exists credit_card_id uuid;
 
@@ -189,6 +202,7 @@ alter table settlements enable row level security;
 alter table week_settlements enable row level security;
 alter table credit_cards enable row level security;
 alter table card_payments enable row level security;
+alter table merchant_rules enable row level security;
 alter table audit_logs enable row level security;
 
 drop policy if exists household_select on households;
@@ -262,6 +276,11 @@ create policy card_payments_all on card_payments for all
   using (household_id in (select household_id from household_members where user_id = auth.uid()))
   with check (household_id in (select household_id from household_members where user_id = auth.uid()));
 
+drop policy if exists merchant_rules_all on merchant_rules;
+create policy merchant_rules_all on merchant_rules for all
+  using (household_id in (select household_id from household_members where user_id = auth.uid()))
+  with check (household_id in (select household_id from household_members where user_id = auth.uid()));
+
 drop policy if exists audit_logs_all on audit_logs;
 create policy audit_logs_all on audit_logs for all
   using (household_id in (select household_id from household_members where user_id = auth.uid()))
@@ -332,7 +351,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['households', 'members', 'categories', 'expenses', 'expense_allocations', 'settlements', 'week_settlements', 'credit_cards', 'card_payments']
+  foreach t in array array['households', 'members', 'categories', 'expenses', 'expense_allocations', 'settlements', 'week_settlements', 'credit_cards', 'card_payments', 'merchant_rules']
   loop
     if not exists (
       select 1 from pg_publication_tables

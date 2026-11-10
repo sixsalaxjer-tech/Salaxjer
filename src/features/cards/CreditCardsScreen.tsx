@@ -161,7 +161,10 @@ export function CreditCardsScreen() {
             + เพิ่มบัตรเครดิต
           </Button>
           <Link to="/cards/import" className="btn btn--ghost btn--small">
-            📩 นำเข้าจากข้อความ LINE ›
+            📩 นำเข้าจาก LINE / Statement ›
+          </Link>
+          <Link to="/cards/rules" className="btn btn--ghost btn--small">
+            🏷️ กฎจัดหมวดหมู่ร้านค้า ›
           </Link>
         </>
       )}

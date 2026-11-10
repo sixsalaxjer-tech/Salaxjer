@@ -51,6 +51,8 @@ export type AuditAction =
   | 'reactivate_credit_card'
   | 'create_card_payment'
   | 'void_card_payment'
+  | 'create_merchant_rule'
+  | 'update_merchant_rule'
   | 'import_restore'
   | 'export_backup'
   | 'conflict_resolution'
@@ -132,6 +134,22 @@ export interface CreditCard {
   creditLimit?: number
   color: string
   status: CreditCardStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type MerchantRuleStatus = 'active' | 'inactive'
+
+/** Master list that classifies card merchants: a notification/statement merchant containing
+ * `keyword` (case-insensitive) is given `categoryId` and, if set, a friendlier `description`.
+ * When several keywords match, the longest (most specific) wins. */
+export interface MerchantRule {
+  merchantRuleId: string
+  householdId: string
+  keyword: string
+  description?: string
+  categoryId: string
+  status: MerchantRuleStatus
   createdAt: string
   updatedAt: string
 }

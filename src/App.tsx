@@ -17,6 +17,7 @@ import { HouseholdSettingsScreen } from '@/features/settings/HouseholdSettingsSc
 import { MembersSettingsScreen } from '@/features/settings/MembersSettingsScreen'
 import { CategoriesSettingsScreen } from '@/features/settings/CategoriesSettingsScreen'
 import { CreditCardsScreen } from '@/features/cards/CreditCardsScreen'
+import { MerchantRulesScreen } from '@/features/cards/MerchantRulesScreen'
 import { ImportCardNotificationsScreen } from '@/features/cards/ImportCardNotificationsScreen'
 import { BackupSettingsScreen } from '@/features/settings/BackupSettingsScreen'
 import { StorageSettingsScreen } from '@/features/settings/StorageSettingsScreen'
@@ -64,6 +65,14 @@ function Gate() {
           }
         />
         <Route path="/cards" element={<CreditCardsScreen />} />
+        <Route
+          path="/cards/rules"
+          element={
+            <SettingsSubScreen title="กฎจัดหมวดหมู่ร้านค้า" backTo="/cards">
+              <MerchantRulesScreen />
+            </SettingsSubScreen>
+          }
+        />
         <Route
           path="/cards/import"
           element={

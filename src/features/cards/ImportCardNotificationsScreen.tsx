@@ -5,7 +5,8 @@ import { useToast } from '@/app/providers/ToastProvider'
 import { db } from '@/infrastructure/db/db'
 import { createExpense } from '@/domain/services/expenseService'
 import { parseCardText } from '@/domain/rules/cardStatement'
-import { resolveMerchant } from '@/domain/rules/merchantRules'
+import { resolveWithRules } from '@/domain/rules/merchantRules'
+import { saveMerchantRule } from '@/domain/services/merchantRuleService'
 import { formatMoney } from '@/shared/formatting/money'
 import { formatDateThai, todayIso } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
@@ -26,6 +27,8 @@ export function ImportCardNotificationsScreen() {
   const [skipped, setSkipped] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [reading, setReading] = useState(false)
+  const [overrides, setOverrides] = useState<Record<string, string>>({})
+  const [learn, setLearn] = useState(true)
 
   const cards = useLiveQuery(
     () => (household ? db.creditCards.where('householdId').equals(household.householdId).toArray() : []),
@@ -73,14 +76,21 @@ export function ImportCardNotificationsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed, cards, existingKeys, existingCounts])
 
+  const merchantRules = useLiveQuery(
+    () => (household ? db.merchantRules.where('householdId').equals(household.householdId).toArray() : []),
+    [household?.householdId]
+  )
+
   if (!household) return null
   const effectiveCategory = categoryId || activeCategories[0]?.categoryId || ''
+  const activeRules = (merchantRules ?? []).filter((r) => r.status === 'active')
 
-  /** Rule-based category (e.g. BTS -> เดินทาง) when the household has it, else the on-screen default. */
-  function categoryFor(merchant: string): string {
-    const name = resolveMerchant(merchant).categoryName
-    return activeCategories.find((c) => c.name === name)?.categoryId ?? effectiveCategory
-  }
+  const resolve = (merchant: string) => resolveWithRules(merchant, activeRules, activeCategories)
+  /** What the master list (or shipped defaults) suggests, else the on-screen default category. */
+  const suggestedCategory = (merchant: string) => resolve(merchant).categoryId ?? effectiveCategory
+  /** The category that will actually be used: a manual choice on the row wins. */
+  const categoryFor = (p: { fingerprint: string; merchant: string }) =>
+    overrides[p.fingerprint] ?? suggestedCategory(p.merchant)
 
   const selectable = rows.filter((r) => r.card && !duplicates.has(r.p.fingerprint))
   const importable = selectable.filter((r) => !skipped.has(r.p.fingerprint))
@@ -115,10 +125,10 @@ export function ImportCardNotificationsScreen() {
           expenseDate: p.date,
           amount: p.amount,
           currency: household.baseCurrency,
-          categoryId: categoryFor(p.merchant),
+          categoryId: categoryFor(p),
           paidByMemberId: payer,
           expenseType: 'personal',
-          description: resolveMerchant(p.merchant).description,
+          description: resolve(p.merchant).description,
           tags: [p.fingerprint.startsWith('stmt|') ? 'statement-import' : 'line-import'],
           status: 'active',
           allocationType: 'equal',
@@ -129,9 +139,23 @@ export function ImportCardNotificationsScreen() {
         })
         ok++
       }
-      toast.show('success', `นำเข้า ${ok} รายการแล้ว`)
+      // Remember manual category choices in the master list so the next import classifies them.
+      let learned = 0
+      if (learn) {
+        const byMerchant = new Map<string, string>()
+        for (const { p } of importable) {
+          const chosen = overrides[p.fingerprint]
+          if (chosen && chosen !== suggestedCategory(p.merchant)) byMerchant.set(p.merchant, chosen)
+        }
+        for (const [keyword, catId] of byMerchant) {
+          await saveMerchantRule(household.householdId, { keyword, categoryId: catId })
+          learned++
+        }
+      }
+      toast.show('success', `นำเข้า ${ok} รายการแล้ว${learned ? ` · จำกฎใหม่ ${learned} ร้าน` : ''}`)
       setText('')
       setSkipped(new Set())
+      setOverrides({})
     } catch (err) {
       toast.show('error', `นำเข้าได้ ${ok} รายการ แล้วหยุด: ${err instanceof AppError ? err.userMessage : 'บันทึกไม่สำเร็จ'}`)
     } finally {
@@ -184,6 +208,12 @@ export function ImportCardNotificationsScreen() {
       {reading && <p>กำลังอ่านไฟล์...</p>}
 
       {rows.length > 0 && (
+        <label>
+          <input type="checkbox" checked={learn} onChange={(e) => setLearn(e.target.checked)} /> จำหมวดหมู่ที่เลือกเองไว้ใช้ครั้งต่อไป (เพิ่มในกฎจัดหมวดหมู่ร้านค้า)
+        </label>
+      )}
+
+      {rows.length > 0 && (
         <button
           type="button"
           className="btn btn--ghost btn--small"
@@ -216,15 +246,29 @@ export function ImportCardNotificationsScreen() {
                       })
                     }
                   />{' '}
-                  {formatDateThai(p.date)} · {resolveMerchant(p.merchant).description}
+                  {formatDateThai(p.date)} · {resolve(p.merchant).description}
                   <br />
                   <small>
                     {card
-                      ? `💳 ${card.name} •••• ${p.last4} · ${activeCategories.find((c) => c.categoryId === categoryFor(p.merchant))?.name ?? ''}`
+                      ? `💳 ${card.name} •••• ${p.last4}${resolve(p.merchant).source === 'none' && !overrides[p.fingerprint] ? ' · ❓ ไม่รู้จักร้านนี้' : ''}`
                       : `⚠️ ไม่พบบัตรเลขท้าย ${p.last4} — เพิ่มบัตรก่อน`}
                     {dup ? ' · นำเข้าแล้ว' : ''}
                   </small>
                 </label>
+                {card && !dup && (
+                  <select
+                    className="input input--compact"
+                    aria-label="หมวดหมู่"
+                    value={categoryFor(p)}
+                    onChange={(e) => setOverrides((o) => ({ ...o, [p.fingerprint]: e.target.value }))}
+                  >
+                    {activeCategories.map((c) => (
+                      <option key={c.categoryId} value={c.categoryId}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <span className="recent-list__amount">{formatMoney(p.amount, household.baseCurrency)}</span>
               </li>
             )

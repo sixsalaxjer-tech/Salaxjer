@@ -175,4 +175,20 @@ describe('credit card mappers', () => {
     expect(row.credit_card_id).toBe('c1')
     expect(dbToExpense({ ...row, id: 'e', amount: 1 }).creditCardId).toBe('c1')
   })
+
+  it('round-trips a merchant rule', async () => {
+    const { merchantRuleToDb, dbToMerchantRule } = await import('@/infrastructure/sync/mappers')
+    const r = {
+      merchantRuleId: 'r1',
+      householdId: 'h1',
+      keyword: 'SHOPEE',
+      description: 'Shopee',
+      categoryId: 'cat1',
+      status: 'active' as const,
+      createdAt: 'x',
+      updatedAt: 'y'
+    }
+    expect(dbToMerchantRule({ ...merchantRuleToDb(r), created_at: 'x' })).toEqual(r)
+    expect(dbToMerchantRule({ ...merchantRuleToDb({ ...r, description: undefined }), created_at: 'x' }).description).toBeUndefined()
+  })
 })

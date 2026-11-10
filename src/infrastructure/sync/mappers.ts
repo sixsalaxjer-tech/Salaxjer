@@ -6,6 +6,7 @@ import type {
   Category,
   CreditCard,
   Expense,
+  MerchantRule,
   ExpenseAllocation,
   Household,
   Member,
@@ -270,6 +271,31 @@ export function dbToWeekSettlement(row: Record<string, unknown>): WeekSettlement
     total: Number(row.total),
     status: row.status as WeekSettlement['status'],
     clearedAt: row.cleared_at as string,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+export function merchantRuleToDb(r: MerchantRule) {
+  return {
+    id: r.merchantRuleId,
+    household_id: r.householdId,
+    keyword: r.keyword,
+    description: r.description ?? null,
+    category_id: r.categoryId,
+    status: r.status,
+    updated_at: r.updatedAt
+  }
+}
+
+export function dbToMerchantRule(row: Record<string, unknown>): MerchantRule {
+  return {
+    merchantRuleId: row.id as string,
+    householdId: row.household_id as string,
+    keyword: row.keyword as string,
+    description: (row.description as string) ?? undefined,
+    categoryId: row.category_id as string,
+    status: row.status as MerchantRule['status'],
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }

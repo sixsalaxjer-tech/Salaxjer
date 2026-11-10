@@ -7,6 +7,7 @@ import type {
   Category,
   CreditCard,
   Expense,
+  MerchantRule,
   ExpenseAllocation,
   Household,
   Member,
@@ -26,7 +27,7 @@ import type {
  * Dexie only re-runs `.upgrade()` for versions newer than what is already on disk, so existing
  * user data is preserved automatically (NFR-008 Recoverability).
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export class AppDatabase extends Dexie {
   households!: Table<Household, string>
@@ -39,6 +40,7 @@ export class AppDatabase extends Dexie {
   weekSettlements!: Table<WeekSettlement, string>
   creditCards!: Table<CreditCard, string>
   cardPayments!: Table<CardPayment, string>
+  merchantRules!: Table<MerchantRule, string>
   auditLogs!: Table<AuditLog, string>
   syncQueue!: Table<SyncQueueEntry, string>
   appMeta!: Table<AppMeta, string>
@@ -80,6 +82,25 @@ export class AppDatabase extends Dexie {
 
     // v3: credit cards + card payments, and an indexed optional `creditCardId` on expenses.
     // Existing rows need no upgrade step (the new field is simply absent).
+    this.version(3).stores({
+      households: 'householdId, name',
+      members: 'memberId, householdId, [householdId+status], displayName',
+      categories: 'categoryId, householdId, [householdId+status], name',
+      expenses:
+        'expenseId, householdId, [householdId+expenseDate], [householdId+status], categoryId, paidByMemberId, expenseType, status, syncStatus, idempotencyKey, deletedAt, creditCardId',
+      expenseAllocations: 'allocationId, expenseId, memberId',
+      attachments: 'attachmentId, expenseId',
+      settlements: 'settlementId, householdId, fromMemberId, toMemberId, settlementDate, status',
+      weekSettlements: 'weekSettlementId, householdId, [householdId+weekStart], status',
+      creditCards: 'creditCardId, householdId, [householdId+status]',
+      cardPayments: 'cardPaymentId, householdId, creditCardId, status',
+      auditLogs: 'auditLogId, householdId, entityType, entityId, timestamp',
+      syncQueue: 'queueId, entityType, entityId, status, idempotencyKey',
+      appMeta: 'key',
+      restorePoints: 'restorePointId, createdAt'
+    })
+
+    // v4: merchant master rules for classifying credit-card merchants.
     this.version(SCHEMA_VERSION).stores({
       households: 'householdId, name',
       members: 'memberId, householdId, [householdId+status], displayName',
@@ -92,6 +113,7 @@ export class AppDatabase extends Dexie {
       weekSettlements: 'weekSettlementId, householdId, [householdId+weekStart], status',
       creditCards: 'creditCardId, householdId, [householdId+status]',
       cardPayments: 'cardPaymentId, householdId, creditCardId, status',
+      merchantRules: 'merchantRuleId, householdId, [householdId+status]',
       auditLogs: 'auditLogId, householdId, entityType, entityId, timestamp',
       syncQueue: 'queueId, entityType, entityId, status, idempotencyKey',
       appMeta: 'key',
@@ -113,6 +135,7 @@ export const ALL_TABLE_NAMES = [
   'weekSettlements',
   'creditCards',
   'cardPayments',
+  'merchantRules',
   'auditLogs'
 ] as const
 
