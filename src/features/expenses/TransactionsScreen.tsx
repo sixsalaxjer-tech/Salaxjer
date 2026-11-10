@@ -19,6 +19,7 @@ export function TransactionsScreen() {
   const [memberId, setMemberId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [expenseType, setExpenseType] = useState<ExpenseType | ''>('')
+  const [method, setMethod] = useState<'' | 'cash' | 'card'>('')
   const [items, setItems] = useState<Expense[]>()
   const [voidTarget, setVoidTarget] = useState<Expense | null>(null)
 
@@ -28,7 +29,8 @@ export function TransactionsScreen() {
         searchText,
         memberId: memberId || undefined,
         categoryId: categoryId || undefined,
-        expenseType: expenseType || undefined
+        expenseType: expenseType || undefined,
+        method: method || undefined
       }
     : null
 
@@ -40,7 +42,7 @@ export function TransactionsScreen() {
   useEffect(() => {
     void reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [household?.householdId, searchText, memberId, categoryId, expenseType])
+  }, [household?.householdId, searchText, memberId, categoryId, expenseType, method])
 
   const grouped = useMemo(() => {
     if (!items) return []
@@ -58,6 +60,7 @@ export function TransactionsScreen() {
     setMemberId('')
     setCategoryId('')
     setExpenseType('')
+    setMethod('')
   }
 
   async function handleDuplicate(expenseId: string) {
@@ -110,6 +113,11 @@ export function TransactionsScreen() {
               </option>
             ))}
           </select>
+          <select className="input" value={method} onChange={(e) => setMethod(e.target.value as '' | 'cash' | 'card')}>
+            <option value="">ทุกวิธีจ่าย</option>
+            <option value="cash">💵 เงินสด/อื่นๆ</option>
+            <option value="card">💳 บัตรเครดิต</option>
+          </select>
           <button type="button" className="btn btn--ghost" onClick={clearFilters}>
             ล้างตัวกรอง
           </button>
@@ -133,7 +141,7 @@ export function TransactionsScreen() {
                       <div className="tx-item__info">
                         <span className="tx-item__desc">{e.description || category?.name || 'ไม่มีรายละเอียด'}</span>
                         <span className="tx-item__meta">
-                          {payer?.displayName ?? 'ไม่ระบุ'} · {category?.name ?? 'ไม่ระบุหมวดหมู่'}
+                          {e.creditCardId ? '💳 ' : ''}{payer?.displayName ?? 'ไม่ระบุ'} · {category?.name ?? 'ไม่ระบุหมวดหมู่'}
                         </span>
                       </div>
                       <div className="tx-item__amount-col">

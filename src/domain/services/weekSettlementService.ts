@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/infrastructure/db/db'
 import { recordAudit } from '@/domain/services/auditService'
-import { isSpend } from '@/domain/services/dashboardService'
+import { isSpend, matchesMethod } from '@/domain/services/dashboardService'
 import { pushWeekSettlement } from '@/infrastructure/sync/syncEngine'
 import { getWeekRange, nowIso } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
@@ -38,7 +38,8 @@ export async function listUnclearedWeeks(householdId: string): Promise<Uncleared
   )
 
   const totals = new Map<string, UnclearedWeek>()
-  for (const e of expenses.filter(isSpend)) {
+  // Weekly clearing is a cash reconciliation: card spend is settled through the card bill instead.
+  for (const e of expenses.filter((x) => isSpend(x) && matchesMethod(x, 'cash'))) {
     const [weekStart, weekEnd] = getWeekRange(e.expenseDate)
     if (clearedWeekStarts.has(weekStart)) continue
     const existing = totals.get(weekStart)

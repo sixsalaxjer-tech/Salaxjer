@@ -32,6 +32,14 @@ export function isSpend(e: Expense): boolean {
   return isReconcilable(e) && e.expenseType !== 'income'
 }
 
+/** How an expense was paid: charged to a credit card, or everything else (cash/transfer/...). */
+export type PaymentMethod = 'cash' | 'card'
+
+export function matchesMethod(e: Expense, method?: PaymentMethod): boolean {
+  if (!method) return true
+  return method === 'card' ? Boolean(e.creditCardId) : !e.creditCardId
+}
+
 function sumInRange(expenses: Expense[], start: string, end: string): number {
   return expenses
     .filter((e) => e.expenseDate >= start && e.expenseDate <= end)
@@ -88,9 +96,12 @@ export interface PeriodBreakdown {
 export async function getPeriodBreakdown(
   householdId: string,
   startIso: string,
-  endIso: string
+  endIso: string,
+  method?: PaymentMethod
 ): Promise<PeriodBreakdown> {
-  const spendable = (await db.expenses.where('householdId').equals(householdId).toArray()).filter(isSpend)
+  const spendable = (await db.expenses.where('householdId').equals(householdId).toArray())
+    .filter(isSpend)
+    .filter((e) => matchesMethod(e, method))
   const inRange = spendable.filter((e) => e.expenseDate >= startIso && e.expenseDate <= endIso)
 
   const byCategoryMap = new Map<string, number>()

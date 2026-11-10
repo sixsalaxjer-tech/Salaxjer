@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
-import { getPeriodBreakdown, type PeriodBreakdown } from '@/domain/services/dashboardService'
+import { getPeriodBreakdown, type PaymentMethod, type PeriodBreakdown } from '@/domain/services/dashboardService'
 import { clearWeek, getWeekSettlement, unclearWeek } from '@/domain/services/weekSettlementService'
 import { buildWeeklySummaryText, buildWeeklySummaryDetailedText } from '@/domain/rules/weeklySummaryText'
 import { addDays, formatDateRangeThai, formatDateThai, getWeekRange, todayIso } from '@/shared/formatting/date'
@@ -23,7 +23,7 @@ const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard?.write
  * browser/OS supports it (opens the native share sheet, which lists LINE if installed), and
  * always offers "copy to clipboard" as a universally-supported fallback.
  */
-export function WeeklySummaryCard() {
+export function WeeklySummaryCard({ method }: { method: PaymentMethod }) {
   const { household, categories, loading: householdLoading } = useHousehold()
   const toast = useToast()
   const [weekOffset, setWeekOffset] = useState(0)
@@ -41,12 +41,12 @@ export function WeeklySummaryCard() {
     setBreakdown(undefined)
     setWeekSettlement(undefined)
     setError(undefined)
-    getPeriodBreakdown(household.householdId, rangeStart, rangeEnd)
+    getPeriodBreakdown(household.householdId, rangeStart, rangeEnd, method)
       .then(setBreakdown)
       .catch(() => setError('ไม่สามารถคำนวณสรุปได้ กรุณาลองโหลดข้อมูลใหม่'))
     getWeekSettlement(household.householdId, rangeStart, rangeEnd).then(setWeekSettlement)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [household?.householdId, rangeStart, rangeEnd])
+  }, [household?.householdId, rangeStart, rangeEnd, method])
 
   async function handleToggleClear() {
     if (!household || !breakdown || clearing) return
@@ -117,7 +117,9 @@ export function WeeklySummaryCard() {
 
   return (
     <section className="card">
-      <h2 className="card__title">สรุปยอดรายสัปดาห์ (สำหรับแชร์)</h2>
+      <h2 className="card__title">
+        สรุปยอดรายสัปดาห์ ({method === 'card' ? 'บัตรเครดิต' : 'เงินสด'}) (สำหรับแชร์)
+      </h2>
       <div className="week-nav">
         <button
           type="button"
@@ -168,6 +170,7 @@ export function WeeklySummaryCard() {
         <>
           <pre className="weekly-summary__preview">{summaryText}</pre>
 
+          {method === 'cash' && (
           <div className="week-clear">
             <span className={`week-clear__status${weekSettlement ? ' week-clear__status--cleared' : ''}`}>
               {weekSettlement ? `✅ เคลียร์ยอดแล้ว (${formatDateThai(weekSettlement.clearedAt)})` : 'ยังไม่ได้เคลียร์ยอด'}
@@ -180,6 +183,7 @@ export function WeeklySummaryCard() {
               {weekSettlement ? 'ยกเลิกการเคลียร์' : 'เคลียร์ยอดสัปดาห์นี้'}
             </Button>
           </div>
+          )}
 
           <div className="form__actions">
             {canShare && (

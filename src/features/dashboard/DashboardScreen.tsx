@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCardSummaries } from '@/features/cards/useCardSummaries'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
-import { getDashboardSummary, getPeriodBreakdown, type PeriodBreakdown } from '@/domain/services/dashboardService'
+import { getDashboardSummary, getPeriodBreakdown, type PaymentMethod, type PeriodBreakdown } from '@/domain/services/dashboardService'
 import type { Expense } from '@/domain/entities/types'
 import { formatMoney } from '@/shared/formatting/money'
 import {
@@ -33,6 +33,7 @@ export function DashboardScreen() {
   const [prevTotal, setPrevTotal] = useState(0)
   const [recent, setRecent] = useState<Expense[]>([])
   const [error, setError] = useState<string>()
+  const [method, setMethod] = useState<PaymentMethod>('cash')
   const cardsData = useCardSummaries(household?.householdId)
   const activeCards = (cardsData?.summaries ?? []).filter((s) => s.card.status === 'active')
 
@@ -54,8 +55,8 @@ export function DashboardScreen() {
     setPeriod(undefined)
     setError(undefined)
     Promise.all([
-      getPeriodBreakdown(household.householdId, rangeStart, rangeEnd),
-      getPeriodBreakdown(household.householdId, prevStart, prevEnd)
+      getPeriodBreakdown(household.householdId, rangeStart, rangeEnd, method),
+      getPeriodBreakdown(household.householdId, prevStart, prevEnd, method)
     ])
       .then(([current, prev]) => {
         setPeriod(current)
@@ -63,7 +64,7 @@ export function DashboardScreen() {
       })
       .catch(() => setError('ไม่สามารถคำนวณสรุปได้ กรุณาลองโหลดข้อมูลใหม่'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [household?.householdId, rangeStart, rangeEnd, prevStart, prevEnd])
+  }, [household?.householdId, rangeStart, rangeEnd, prevStart, prevEnd, method])
 
   useEffect(() => {
     if (!household) return
@@ -94,6 +95,21 @@ export function DashboardScreen() {
 
   return (
     <div className="screen dashboard">
+      <div className="segmented" role="radiogroup" aria-label="วิธีจ่าย">
+        {(['cash', 'card'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={method === m}
+            className={`segmented__option${method === m ? ' segmented__option--active' : ''}`}
+            onClick={() => setMethod(m)}
+          >
+            {m === 'cash' ? '💵 เงินสด/อื่นๆ' : '💳 บัตรเครดิต'}
+          </button>
+        ))}
+      </div>
+
       <section className="card kpi-card">
         <div className="segmented" role="radiogroup" aria-label="มุมมองช่วงเวลา">
           <button
@@ -149,7 +165,7 @@ export function DashboardScreen() {
         </p>
       </section>
 
-      <WeeklySummaryCard />
+      <WeeklySummaryCard method={method} />
 
       {activeCards.length > 0 && (
         <section className="card">

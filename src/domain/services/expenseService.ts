@@ -338,6 +338,8 @@ export interface ExpenseFilters {
   status?: Expense['status']
   fromDate?: string
   toDate?: string
+  /** 'card' = charged to a credit card; 'cash' = everything else. */
+  method?: 'cash' | 'card'
 }
 
 /** FR-009: local-only search/filter, combinable, always excludes soft-deleted rows. */
@@ -347,6 +349,7 @@ export async function listExpenses(filters: ExpenseFilters): Promise<Expense[]> 
   if (filters.memberId) items = items.filter((e) => e.paidByMemberId === filters.memberId)
   if (filters.categoryId) items = items.filter((e) => e.categoryId === filters.categoryId)
   if (filters.expenseType) items = items.filter((e) => e.expenseType === filters.expenseType)
+  if (filters.method) items = items.filter((e) => (filters.method === 'card' ? Boolean(e.creditCardId) : !e.creditCardId))
   if (filters.status) items = items.filter((e) => e.status === filters.status)
   if (filters.fromDate) items = items.filter((e) => e.expenseDate >= filters.fromDate!)
   if (filters.toDate) items = items.filter((e) => e.expenseDate <= filters.toDate!)

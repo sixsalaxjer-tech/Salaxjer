@@ -113,3 +113,16 @@ describe('summarizeCard', () => {
     expect(s.overdue).toBe(true)
   })
 })
+
+describe('payment method split', () => {
+  it('separates card and non-card expenses', async () => {
+    const { matchesMethod } = await import('@/domain/services/dashboardService')
+    const onCard = exp('2026-11-01', 100)
+    const cash = exp('2026-11-01', 50, { creditCardId: undefined })
+    expect(matchesMethod(onCard, 'card')).toBe(true)
+    expect(matchesMethod(onCard, 'cash')).toBe(false)
+    expect(matchesMethod(cash, 'card')).toBe(false)
+    expect(matchesMethod(cash, 'cash')).toBe(true)
+    expect(matchesMethod(cash)).toBe(true)
+  })
+})
