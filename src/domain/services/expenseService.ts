@@ -31,6 +31,8 @@ export interface CreateExpenseInput {
   /** Ignored for 'personal' (the payer is the sole responsible member). */
   allocationEntries: AllocationInput[]
   adjustmentReason?: string
+  /** Card the expense was charged to, if any. */
+  creditCardId?: string
   /** Stable per form-submission-attempt so retries never create a duplicate row (VAL-012, BR-009). */
   idempotencyKey: string
 }
@@ -130,7 +132,8 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
         clientUpdatedAt: now,
         version: 1,
         idempotencyKey: input.idempotencyKey,
-        adjustmentReason: input.adjustmentReason
+        adjustmentReason: input.adjustmentReason,
+        creditCardId: input.creditCardId || undefined
       }
 
       await db.expenses.add(expense)
@@ -222,7 +225,8 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
         syncStatus: APP_CONFIG.syncEnabled ? 'pending_sync' : existing.syncStatus,
         clientUpdatedAt: nowIso(),
         version: existing.version + 1,
-        adjustmentReason: input.adjustmentReason
+        adjustmentReason: input.adjustmentReason,
+        creditCardId: input.creditCardId || undefined
       }
       await db.expenses.put(updated)
       await db.expenseAllocations.where('expenseId').equals(input.expenseId).delete()

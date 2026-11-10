@@ -16,6 +16,8 @@ import { SettingsHomeScreen } from '@/features/settings/SettingsHomeScreen'
 import { HouseholdSettingsScreen } from '@/features/settings/HouseholdSettingsScreen'
 import { MembersSettingsScreen } from '@/features/settings/MembersSettingsScreen'
 import { CategoriesSettingsScreen } from '@/features/settings/CategoriesSettingsScreen'
+import { CreditCardsScreen } from '@/features/cards/CreditCardsScreen'
+import { ImportCardNotificationsScreen } from '@/features/cards/ImportCardNotificationsScreen'
 import { BackupSettingsScreen } from '@/features/settings/BackupSettingsScreen'
 import { StorageSettingsScreen } from '@/features/settings/StorageSettingsScreen'
 import { SettingsSubScreen } from '@/app/layout/SettingsSubScreen'
@@ -58,6 +60,22 @@ function Gate() {
           element={
             <SettingsSubScreen title="หมวดหมู่">
               <CategoriesSettingsScreen />
+            </SettingsSubScreen>
+          }
+        />
+        <Route
+          path="/settings/cards"
+          element={
+            <SettingsSubScreen title="บัตรเครดิต">
+              <CreditCardsScreen />
+            </SettingsSubScreen>
+          }
+        />
+        <Route
+          path="/settings/cards/import"
+          element={
+            <SettingsSubScreen title="นำเข้าจากข้อความ LINE">
+              <ImportCardNotificationsScreen />
             </SettingsSubScreen>
           }
         />

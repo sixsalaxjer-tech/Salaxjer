@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '@/infrastructure/db/db'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
 import { createExpense, listDescriptionSuggestionsByCategory, updateExpense } from '@/domain/services/expenseService'
@@ -41,6 +43,12 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [rows, setRows] = useState<AllocationRowState[]>(
     activeMembers.map((m) => ({ memberId: m.memberId, selected: true, exactAmount: '', percentage: '' }))
   )
+  const cards = useLiveQuery(
+    () => (household ? db.creditCards.where('householdId').equals(household.householdId).toArray() : []),
+    [household?.householdId]
+  )
+  const selectableCards = (cards ?? []).filter((c) => c.status === 'active' || c.creditCardId === existing?.creditCardId)
+  const [creditCardId, setCreditCardId] = useState(existing?.creditCardId ?? '')
   const [error, setError] = useState<string>()
   const [submitting, setSubmitting] = useState(false)
   const [duplicateCandidates, setDuplicateCandidates] = useState<Expense[] | null>(null)
@@ -88,7 +96,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         status,
         allocationType,
         allocationEntries,
-        adjustmentReason: expenseType === 'adjustment' ? adjustmentReason : undefined
+        adjustmentReason: expenseType === 'adjustment' ? adjustmentReason : undefined,
+        creditCardId: creditCardId || undefined
       }
 
       if (existing) {
@@ -182,6 +191,20 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
             ))}
           </select>
         </Field>
+
+        {selectableCards.length > 0 && (
+          <Field label="วิธีจ่าย" htmlFor="credit-card">
+            <select id="credit-card" className="input" value={creditCardId} onChange={(e) => setCreditCardId(e.target.value)}>
+              <option value="">เงินสด / โอน / อื่นๆ</option>
+              {selectableCards.map((c) => (
+                <option key={c.creditCardId} value={c.creditCardId}>
+                  💳 {c.name}
+                  {c.last4 ? ` •••• ${c.last4}` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
 
         <Field label="ประเภทค่าใช้จ่าย" htmlFor="expense-type">
           <div className="segmented" role="radiogroup">

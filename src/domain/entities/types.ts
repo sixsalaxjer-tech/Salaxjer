@@ -45,6 +45,12 @@ export type AuditAction =
   | 'update_category'
   | 'deactivate_category'
   | 'reactivate_category'
+  | 'create_credit_card'
+  | 'update_credit_card'
+  | 'deactivate_credit_card'
+  | 'reactivate_credit_card'
+  | 'create_card_payment'
+  | 'void_card_payment'
   | 'import_restore'
   | 'export_backup'
   | 'conflict_resolution'
@@ -105,6 +111,44 @@ export interface Expense {
   idempotencyKey: string
   /** Reason is required when expenseType === 'adjustment' per BR-002. */
   adjustmentReason?: string
+  /** Set when the expense was charged to a credit card (see CreditCard). Local-only for now:
+   * not carried by the cloud sync mappers. */
+  creditCardId?: string
+}
+
+export type CreditCardStatus = 'active' | 'inactive'
+
+export interface CreditCard {
+  creditCardId: string
+  householdId: string
+  name: string
+  /** Last 4 digits, for telling cards apart. Optional; never store the full number. */
+  last4?: string
+  ownerMemberId?: string
+  /** Day of month the statement closes (1-31; clamped to the month's length). */
+  statementDay: number
+  /** Day of month the payment is due (1-31; clamped). Falls in the month after statementDay if <= statementDay. */
+  dueDay: number
+  creditLimit?: number
+  color: string
+  status: CreditCardStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CardPaymentStatus = 'confirmed' | 'voided'
+
+/** A repayment of the card bill. Reduces the card's outstanding balance. */
+export interface CardPayment {
+  cardPaymentId: string
+  householdId: string
+  creditCardId: string
+  amount: number
+  paymentDate: string
+  note?: string
+  status: CardPaymentStatus
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ExpenseAllocation {

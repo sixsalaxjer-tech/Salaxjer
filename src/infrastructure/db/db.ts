@@ -3,7 +3,9 @@ import type {
   AppMeta,
   AuditLog,
   Attachment,
+  CardPayment,
   Category,
+  CreditCard,
   Expense,
   ExpenseAllocation,
   Household,
@@ -24,7 +26,7 @@ import type {
  * Dexie only re-runs `.upgrade()` for versions newer than what is already on disk, so existing
  * user data is preserved automatically (NFR-008 Recoverability).
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export class AppDatabase extends Dexie {
   households!: Table<Household, string>
@@ -35,6 +37,8 @@ export class AppDatabase extends Dexie {
   attachments!: Table<Attachment, string>
   settlements!: Table<Settlement, string>
   weekSettlements!: Table<WeekSettlement, string>
+  creditCards!: Table<CreditCard, string>
+  cardPayments!: Table<CardPayment, string>
   auditLogs!: Table<AuditLog, string>
   syncQueue!: Table<SyncQueueEntry, string>
   appMeta!: Table<AppMeta, string>
@@ -58,7 +62,7 @@ export class AppDatabase extends Dexie {
       restorePoints: 'restorePointId, createdAt'
     })
 
-    this.version(SCHEMA_VERSION).stores({
+    this.version(2).stores({
       households: 'householdId, name',
       members: 'memberId, householdId, [householdId+status], displayName',
       categories: 'categoryId, householdId, [householdId+status], name',
@@ -68,6 +72,26 @@ export class AppDatabase extends Dexie {
       attachments: 'attachmentId, expenseId',
       settlements: 'settlementId, householdId, fromMemberId, toMemberId, settlementDate, status',
       weekSettlements: 'weekSettlementId, householdId, [householdId+weekStart], status',
+      auditLogs: 'auditLogId, householdId, entityType, entityId, timestamp',
+      syncQueue: 'queueId, entityType, entityId, status, idempotencyKey',
+      appMeta: 'key',
+      restorePoints: 'restorePointId, createdAt'
+    })
+
+    // v3: credit cards + card payments, and an indexed optional `creditCardId` on expenses.
+    // Existing rows need no upgrade step (the new field is simply absent).
+    this.version(SCHEMA_VERSION).stores({
+      households: 'householdId, name',
+      members: 'memberId, householdId, [householdId+status], displayName',
+      categories: 'categoryId, householdId, [householdId+status], name',
+      expenses:
+        'expenseId, householdId, [householdId+expenseDate], [householdId+status], categoryId, paidByMemberId, expenseType, status, syncStatus, idempotencyKey, deletedAt, creditCardId',
+      expenseAllocations: 'allocationId, expenseId, memberId',
+      attachments: 'attachmentId, expenseId',
+      settlements: 'settlementId, householdId, fromMemberId, toMemberId, settlementDate, status',
+      weekSettlements: 'weekSettlementId, householdId, [householdId+weekStart], status',
+      creditCards: 'creditCardId, householdId, [householdId+status]',
+      cardPayments: 'cardPaymentId, householdId, creditCardId, status',
       auditLogs: 'auditLogId, householdId, entityType, entityId, timestamp',
       syncQueue: 'queueId, entityType, entityId, status, idempotencyKey',
       appMeta: 'key',
@@ -87,6 +111,8 @@ export const ALL_TABLE_NAMES = [
   'expenseAllocations',
   'settlements',
   'weekSettlements',
+  'creditCards',
+  'cardPayments',
   'auditLogs'
 ] as const
 

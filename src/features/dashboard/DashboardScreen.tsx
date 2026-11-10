@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useCardSummaries } from '@/features/cards/useCardSummaries'
 import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { getDashboardSummary, getPeriodBreakdown, type PeriodBreakdown } from '@/domain/services/dashboardService'
 import type { Expense } from '@/domain/entities/types'
@@ -7,6 +9,7 @@ import {
   addDays,
   addMonths,
   addYears,
+  formatDateThai,
   formatMonthThai,
   formatYearThai,
   getMonthRange,
@@ -30,6 +33,8 @@ export function DashboardScreen() {
   const [prevTotal, setPrevTotal] = useState(0)
   const [recent, setRecent] = useState<Expense[]>([])
   const [error, setError] = useState<string>()
+  const cardsData = useCardSummaries(household?.householdId)
+  const activeCards = (cardsData?.summaries ?? []).filter((s) => s.card.status === 'active')
 
   const anchorDate = viewMode === 'month' ? addMonths(todayIso(), offset) : addYears(todayIso(), offset)
   const [rangeStart, rangeEnd] = household
@@ -145,6 +150,26 @@ export function DashboardScreen() {
       </section>
 
       <WeeklySummaryCard />
+
+      {activeCards.length > 0 && (
+        <section className="card">
+          <h2 className="card__title">💳 บัตรเครดิต</h2>
+          <ul className="recent-list">
+            {activeCards.map((s) => (
+              <li key={s.card.creditCardId} className="recent-list__item">
+                <span className="recent-list__desc">
+                  {s.card.name}
+                  {s.statementDue > 0 && ` · ครบกำหนด ${formatDateThai(s.dueDate)}${s.overdue ? ' ⚠️' : ''}`}
+                </span>
+                <span className="recent-list__amount">{formatMoney(s.outstanding, currency)}</span>
+              </li>
+            ))}
+          </ul>
+          <Link to="/settings/cards" className="btn btn--ghost btn--small">
+            จัดการบัตรและบันทึกการชำระ ›
+          </Link>
+        </section>
+      )}
 
       <section className="card">
         <h2 className="card__title">ยอดตามหมวดหมู่</h2>

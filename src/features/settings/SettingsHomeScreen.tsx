@@ -5,6 +5,7 @@ const ITEMS = [
   { to: '/settings/household', icon: '🏠', label: 'ครอบครัว' },
   { to: '/settings/members', icon: '👪', label: 'สมาชิก' },
   { to: '/settings/categories', icon: '🏷️', label: 'หมวดหมู่' },
+  { to: '/settings/cards', icon: '💳', label: 'บัตรเครดิต' },
   { to: '/settings/backup', icon: '💾', label: 'สำรองและกู้คืนข้อมูล' },
   { to: '/settings/storage', icon: '📦', label: 'พื้นที่จัดเก็บ' }
 ]

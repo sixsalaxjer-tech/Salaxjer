@@ -52,6 +52,8 @@ async function collectData(householdId: string): Promise<BackupData> {
   data.expenses = await db.expenses.where('householdId').equals(householdId).toArray()
   data.settlements = await db.settlements.where('householdId').equals(householdId).toArray()
   data.weekSettlements = await db.weekSettlements.where('householdId').equals(householdId).toArray()
+  data.creditCards = await db.creditCards.where('householdId').equals(householdId).toArray()
+  data.cardPayments = await db.cardPayments.where('householdId').equals(householdId).toArray()
   data.auditLogs = await db.auditLogs.where('householdId').equals(householdId).toArray()
   // ExpenseAllocation has no householdId column of its own — it's scoped via its parent Expense.
   const expenseIds = data.expenses.map((e) => (e as { expenseId: string }).expenseId)
@@ -192,6 +194,8 @@ export async function importBackup(
         db.expenseAllocations,
         db.settlements,
         db.weekSettlements,
+        db.creditCards,
+        db.cardPayments,
         db.auditLogs,
         db.restorePoints
       ],
@@ -206,6 +210,8 @@ export async function importBackup(
           await db.expenses.where('householdId').equals(householdId).delete()
           await db.settlements.where('householdId').equals(householdId).delete()
           await db.weekSettlements.where('householdId').equals(householdId).delete()
+          await db.creditCards.where('householdId').equals(householdId).delete()
+          await db.cardPayments.where('householdId').equals(householdId).delete()
 
           for (const t of ALL_TABLE_NAMES) {
             const rows = (data[t] ?? []) as { householdId?: string }[]
@@ -223,6 +229,8 @@ export async function importBackup(
             expenseAllocations: 'allocationId',
             settlements: 'settlementId',
             weekSettlements: 'weekSettlementId',
+            creditCards: 'creditCardId',
+            cardPayments: 'cardPaymentId',
             auditLogs: 'auditLogId'
           }
           for (const t of ALL_TABLE_NAMES) {
