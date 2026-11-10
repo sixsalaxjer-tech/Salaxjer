@@ -4,7 +4,7 @@ import { useHousehold } from '@/app/providers/HouseholdProvider'
 import { useToast } from '@/app/providers/ToastProvider'
 import { db } from '@/infrastructure/db/db'
 import { createExpense } from '@/domain/services/expenseService'
-import { parseCardNotifications } from '@/domain/rules/cardNotification'
+import { parseCardText } from '@/domain/rules/cardStatement'
 import { resolveMerchant } from '@/domain/rules/merchantRules'
 import { formatMoney } from '@/shared/formatting/money'
 import { formatDateThai, todayIso } from '@/shared/formatting/date'
@@ -13,9 +13,10 @@ import { Field } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 
+const sameSpendKey = (cardId: string, date: string, amount: number) => `${cardId}|${date}|${amount.toFixed(2)}`
 const keyFor = (cardId: string, fingerprint: string) => `card-notify:${cardId}:${fingerprint}`
 
-/** Paste card-spend notifications forwarded from LINE; review; import as expenses on the matching card. */
+/** Import card spending from pasted LINE notifications or a UOB monthly statement (PDF/text): review, then add as expenses on the matching card. */
 export function ImportCardNotificationsScreen() {
   const { household, activeMembers, activeCategories } = useHousehold()
   const toast = useToast()
@@ -24,12 +25,13 @@ export function ImportCardNotificationsScreen() {
   const [payerId, setPayerId] = useState('')
   const [skipped, setSkipped] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
+  const [reading, setReading] = useState(false)
 
   const cards = useLiveQuery(
     () => (household ? db.creditCards.where('householdId').equals(household.householdId).toArray() : []),
     [household?.householdId]
   )
-  const parsed = useMemo(() => parseCardNotifications(text, todayIso()), [text])
+  const parsed = useMemo(() => parseCardText(text, todayIso()), [text])
   const cardByLast4 = (last4: string) => (cards ?? []).find((c) => c.status === 'active' && c.last4 === last4)
 
   const rows = parsed.map((p) => ({ p, card: cardByLast4(p.last4) }))
@@ -38,6 +40,38 @@ export function ImportCardNotificationsScreen() {
     async () => new Set((await db.expenses.where('idempotencyKey').anyOf(keys).toArray()).map((e) => e.idempotencyKey)),
     [keys.join(',')]
   )
+
+  // Same card + date + amount already recorded (from any source) counts as imported, so a statement
+  // never doubles up purchases that were already brought in from LINE notifications or by hand.
+  // Repeats are matched by occurrence, so three identical 17.00 taps need three existing rows.
+  const cardIdsKey = rows.flatMap((r) => (r.card ? [r.card.creditCardId] : [])).filter((v, i, a) => a.indexOf(v) === i).join(',')
+  const existingCounts = useLiveQuery(async () => {
+    const ids = cardIdsKey ? cardIdsKey.split(',') : []
+    const counts = new Map<string, number>()
+    if (ids.length === 0) return counts
+    for (const e of await db.expenses.where('creditCardId').anyOf(ids).toArray()) {
+      if (e.status === 'voided' || e.deletedAt || !e.creditCardId) continue
+      const k = sameSpendKey(e.creditCardId, e.expenseDate, e.amount)
+      counts.set(k, (counts.get(k) ?? 0) + 1)
+    }
+    return counts
+  }, [cardIdsKey])
+
+  const duplicates = useMemo(() => {
+    const dup = new Set<string>()
+    const seen = new Map<string, number>()
+    for (const { p, card } of rows) {
+      if (!card) continue
+      const k = sameSpendKey(card.creditCardId, p.date, p.amount)
+      const n = seen.get(k) ?? 0
+      seen.set(k, n + 1)
+      if (existingKeys?.has(keyFor(card.creditCardId, p.fingerprint)) || (existingCounts?.get(k) ?? 0) > n) {
+        dup.add(p.fingerprint)
+      }
+    }
+    return dup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsed, cards, existingKeys, existingCounts])
 
   if (!household) return null
   const effectiveCategory = categoryId || activeCategories[0]?.categoryId || ''
@@ -48,9 +82,26 @@ export function ImportCardNotificationsScreen() {
     return activeCategories.find((c) => c.name === name)?.categoryId ?? effectiveCategory
   }
 
-  const importable = rows.filter(
-    (r) => r.card && !skipped.has(r.p.fingerprint) && !existingKeys?.has(keyFor(r.card.creditCardId, r.p.fingerprint))
-  )
+  const selectable = rows.filter((r) => r.card && !duplicates.has(r.p.fingerprint))
+  const importable = selectable.filter((r) => !skipped.has(r.p.fingerprint))
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return
+    setReading(true)
+    try {
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        const { extractPdfLines } = await import('@/infrastructure/pdf/extractPdfText')
+        setText((await extractPdfLines(file)).join('\n'))
+      } else {
+        setText(await file.text())
+      }
+      setSkipped(new Set())
+    } catch {
+      toast.show('error', 'อ่านไฟล์ไม่สำเร็จ (ถ้า PDF มีรหัสผ่านต้องเปิดแล้วบันทึกใหม่ หรือคัดลอกข้อความมาวางแทน)')
+    } finally {
+      setReading(false)
+    }
+  }
 
   async function handleImport() {
     if (!household) return
@@ -68,7 +119,7 @@ export function ImportCardNotificationsScreen() {
           paidByMemberId: payer,
           expenseType: 'personal',
           description: resolveMerchant(p.merchant).description,
-          tags: ['line-import'],
+          tags: [p.fingerprint.startsWith('stmt|') ? 'statement-import' : 'line-import'],
           status: 'active',
           allocationType: 'equal',
           allocationEntries: [],
@@ -91,7 +142,20 @@ export function ImportCardNotificationsScreen() {
   return (
     <div className="screen">
       <form className="form" onSubmit={(e) => e.preventDefault()}>
-        <Field label="วางข้อความแจ้งเตือนจาก LINE" htmlFor="notify-text" hint="วางได้หลายรายการพร้อมกัน ทั้งภาษาไทย/อังกฤษ">
+        <Field label="ไฟล์ Statement (PDF) จากธนาคาร" htmlFor="notify-file" hint="รองรับ Statement รายเดือนของ UOB — หรือวางข้อความด้านล่างแทน">
+          <input
+            id="notify-file"
+            className="input"
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            disabled={reading}
+            onChange={(e) => {
+              void handleFile(e.target.files?.[0])
+              e.target.value = ''
+            }}
+          />
+        </Field>
+        <Field label="หรือวางข้อความแจ้งเตือนจาก LINE / ข้อความ Statement" htmlFor="notify-text" hint="วางได้หลายรายการพร้อมกัน ทั้งภาษาไทย/อังกฤษ">
           <textarea id="notify-text" className="input" rows={8} value={text} onChange={(e) => setText(e.target.value)} />
         </Field>
         <Field label="หมวดหมู่เริ่มต้น (ใช้เมื่อไม่รู้จักร้าน)" htmlFor="notify-category">
@@ -117,10 +181,24 @@ export function ImportCardNotificationsScreen() {
 
       {text.trim() && rows.length === 0 && <EmptyState icon="🔍" title="ไม่พบรายการใช้บัตรในข้อความ" />}
 
+      {reading && <p>กำลังอ่านไฟล์...</p>}
+
+      {rows.length > 0 && (
+        <button
+          type="button"
+          className="btn btn--ghost btn--small"
+          onClick={() =>
+            setSkipped(importable.length === selectable.length ? new Set(selectable.map((r) => r.p.fingerprint)) : new Set())
+          }
+        >
+          {importable.length === selectable.length ? 'ยกเลิกเลือกทั้งหมด' : 'เลือกทั้งหมด'}
+        </button>
+      )}
+
       {rows.length > 0 && (
         <ul className="recent-list">
           {rows.map(({ p, card }) => {
-            const dup = card && existingKeys?.has(keyFor(card.creditCardId, p.fingerprint))
+            const dup = card && duplicates.has(p.fingerprint)
             const off = skipped.has(p.fingerprint)
             return (
               <li key={p.fingerprint} className="recent-list__item">
@@ -142,7 +220,8 @@ export function ImportCardNotificationsScreen() {
                   <br />
                   <small>
                     {card
-                      ? `💳 ${card.name} •••• ${p.last4} · ${activeCategories.find((c) => c.categoryId === categoryFor(p.merchant))?.name ?? ''}` : `⚠️ ไม่พบบัตรเลขท้าย ${p.last4} — เพิ่มบัตรก่อน`}
+                      ? `💳 ${card.name} •••• ${p.last4} · ${activeCategories.find((c) => c.categoryId === categoryFor(p.merchant))?.name ?? ''}`
+                      : `⚠️ ไม่พบบัตรเลขท้าย ${p.last4} — เพิ่มบัตรก่อน`}
                     {dup ? ' · นำเข้าแล้ว' : ''}
                   </small>
                 </label>

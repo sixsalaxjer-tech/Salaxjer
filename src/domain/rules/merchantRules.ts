@@ -11,6 +11,10 @@ export interface MerchantRule {
 export const MERCHANT_RULES: MerchantRule[] = [
   { pattern: /LP_BTS/i, description: 'ค่าเดินทาง BTS', categoryName: 'เดินทาง' },
   { pattern: /LP_BRT/i, description: 'ค่าเดินทาง BRT', categoryName: 'เดินทาง' },
+  { pattern: /BSS\*BTS/i, description: 'ค่าเดินทาง BTS', categoryName: 'เดินทาง' },
+  { pattern: /MRT-BEM/i, description: 'ค่าเดินทาง MRT', categoryName: 'เดินทาง' },
+  { pattern: /GRAB/i, description: 'ค่าเดินทาง Grab', categoryName: 'เดินทาง' },
+  { pattern: /FAST FOOD/i, description: 'อาหาร', categoryName: 'อาหาร' },
   { pattern: /7-?11/, description: 'อาหาร 7-11', categoryName: 'อาหาร' }
 ]
 
