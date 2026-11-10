@@ -18,13 +18,15 @@ export interface WeeklySummaryTextInput {
   items: WeeklySummaryItem[]
   rangeStart: string
   rangeEnd: string
+  /** Optional payment-method label shown in the header, e.g. 'บัตรเครดิต'. */
+  methodLabel?: string
 }
 
 /** The only categories shown as a single "name total" line; every other category is itemized. */
 const SUMMED_CATEGORY_NAMES = new Set(['อาหาร', 'เดินทาง'])
 
-function buildHeader(rangeStart: string, rangeEnd: string): string {
-  return `รายละเอียดรายการ วันที่ ${formatWeekRangeThaiCompact(rangeStart, rangeEnd)}`
+function buildHeader(rangeStart: string, rangeEnd: string, methodLabel?: string): string {
+  return `รายละเอียดรายการ${methodLabel ? methodLabel : ''} วันที่ ${formatWeekRangeThaiCompact(rangeStart, rangeEnd)}`
 }
 
 /**
@@ -36,7 +38,7 @@ function buildHeader(rangeStart: string, rangeEnd: string): string {
  * DB-free; the caller resolves category names before calling this.
  */
 export function buildWeeklySummaryText(input: WeeklySummaryTextInput): string {
-  const lines: string[] = [buildHeader(input.rangeStart, input.rangeEnd)]
+  const lines: string[] = [buildHeader(input.rangeStart, input.rangeEnd, input.methodLabel)]
 
   const itemsByCategory = new Map<string, WeeklySummaryItem[]>()
   for (const item of input.items) {

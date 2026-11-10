@@ -5,6 +5,7 @@ import { useToast } from '@/app/providers/ToastProvider'
 import { db } from '@/infrastructure/db/db'
 import { createExpense } from '@/domain/services/expenseService'
 import { parseCardNotifications } from '@/domain/rules/cardNotification'
+import { resolveMerchant } from '@/domain/rules/merchantRules'
 import { formatMoney } from '@/shared/formatting/money'
 import { formatDateThai, todayIso } from '@/shared/formatting/date'
 import { AppError } from '@/shared/types/errors'
@@ -41,6 +42,12 @@ export function ImportCardNotificationsScreen() {
   if (!household) return null
   const effectiveCategory = categoryId || activeCategories[0]?.categoryId || ''
 
+  /** Rule-based category (e.g. BTS -> เดินทาง) when the household has it, else the on-screen default. */
+  function categoryFor(merchant: string): string {
+    const name = resolveMerchant(merchant).categoryName
+    return activeCategories.find((c) => c.name === name)?.categoryId ?? effectiveCategory
+  }
+
   const importable = rows.filter(
     (r) => r.card && !skipped.has(r.p.fingerprint) && !existingKeys?.has(keyFor(r.card.creditCardId, r.p.fingerprint))
   )
@@ -57,10 +64,10 @@ export function ImportCardNotificationsScreen() {
           expenseDate: p.date,
           amount: p.amount,
           currency: household.baseCurrency,
-          categoryId: effectiveCategory,
+          categoryId: categoryFor(p.merchant),
           paidByMemberId: payer,
           expenseType: 'personal',
-          description: p.merchant,
+          description: resolveMerchant(p.merchant).description,
           tags: ['line-import'],
           status: 'active',
           allocationType: 'equal',
@@ -87,7 +94,7 @@ export function ImportCardNotificationsScreen() {
         <Field label="วางข้อความแจ้งเตือนจาก LINE" htmlFor="notify-text" hint="วางได้หลายรายการพร้อมกัน ทั้งภาษาไทย/อังกฤษ">
           <textarea id="notify-text" className="input" rows={8} value={text} onChange={(e) => setText(e.target.value)} />
         </Field>
-        <Field label="หมวดหมู่ (ใช้กับทุกรายการ)" htmlFor="notify-category">
+        <Field label="หมวดหมู่เริ่มต้น (ใช้เมื่อไม่รู้จักร้าน)" htmlFor="notify-category">
           <select id="notify-category" className="input" value={effectiveCategory} onChange={(e) => setCategoryId(e.target.value)}>
             {activeCategories.map((c) => (
               <option key={c.categoryId} value={c.categoryId}>
@@ -131,10 +138,11 @@ export function ImportCardNotificationsScreen() {
                       })
                     }
                   />{' '}
-                  {formatDateThai(p.date)} · {p.merchant}
+                  {formatDateThai(p.date)} · {resolveMerchant(p.merchant).description}
                   <br />
                   <small>
-                    {card ? `💳 ${card.name} •••• ${p.last4}` : `⚠️ ไม่พบบัตรเลขท้าย ${p.last4} — เพิ่มบัตรก่อน`}
+                    {card
+                      ? `💳 ${card.name} •••• ${p.last4} · ${activeCategories.find((c) => c.categoryId === categoryFor(p.merchant))?.name ?? ''}` : `⚠️ ไม่พบบัตรเลขท้าย ${p.last4} — เพิ่มบัตรก่อน`}
                     {dup ? ' · นำเข้าแล้ว' : ''}
                   </small>
                 </label>

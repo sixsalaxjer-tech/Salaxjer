@@ -90,11 +90,18 @@ export function WeeklySummaryCard({ method }: { method: PaymentMethod }) {
     })
 
     if (format === 'simple') {
-      return buildWeeklySummaryText({ total: breakdown.total, byCategory, rangeStart, rangeEnd, items })
+      return buildWeeklySummaryText({
+        total: breakdown.total,
+        byCategory,
+        rangeStart,
+        rangeEnd,
+        items,
+        methodLabel: method === 'card' ? 'บัตรเครดิต' : undefined
+      })
     }
 
     return buildWeeklySummaryDetailedText({ byCategory, items })
-  }, [breakdown, categories, format, rangeStart, rangeEnd])
+  }, [breakdown, categories, format, rangeStart, rangeEnd, method])
 
   async function handleShare() {
     try {

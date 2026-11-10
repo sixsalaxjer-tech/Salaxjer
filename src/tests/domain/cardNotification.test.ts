@@ -43,3 +43,22 @@ describe('inferDate', () => {
     expect(inferDate(28, 12, '2027-01-02')).toBe('2026-12-28')
   })
 })
+
+describe('resolveMerchant', () => {
+  it('maps known merchants to a description and category', async () => {
+    const { resolveMerchant } = await import('@/domain/rules/merchantRules')
+    expect(resolveMerchant('LINEPAY*LP_BTS')).toEqual({ description: 'ค่าเดินทาง BTS', categoryName: 'เดินทาง' })
+    expect(resolveMerchant('LINEPAY*LP_BRT EV BUS')).toEqual({ description: 'ค่าเดินทาง BRT', categoryName: 'เดินทาง' })
+    expect(resolveMerchant('TMN*TMN 7-11')).toEqual({ description: 'อาหาร 7-11', categoryName: 'อาหาร' })
+    expect(resolveMerchant('TMN 7-11').description).toBe('อาหาร 7-11')
+    expect(resolveMerchant('Other Shop')).toEqual({ description: 'Other Shop' })
+  })
+
+  it('parses the TMN*TMN 7-11 notification', () => {
+    const r = parseCardNotifications(
+      'มีการใช้บัตร UOB-2989 @TMN*TMN 7-11 20.00 THB วันที่ 10/11 วงเงินคงเหลือใช้ได้ 171,044.00 THB',
+      '2026-11-10'
+    )
+    expect(r).toEqual([expect.objectContaining({ last4: '2989', merchant: 'TMN*TMN 7-11', amount: 20, date: '2026-11-10' })])
+  })
+})
