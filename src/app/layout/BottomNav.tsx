@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 const ITEMS = [
   { to: '/', label: 'สรุป', icon: '📊', end: true },
   { to: '/transactions', label: 'รายการ', icon: '📋', end: false },
+  { to: '/cards', label: 'บัตร', icon: '💳', end: false },
   { to: '/add', label: 'เพิ่ม', icon: '➕', end: false },
   { to: '/settlement', label: 'เคลียร์ยอด', icon: '🤝', end: false },
   { to: '/settings', label: 'ตั้งค่า', icon: '⚙️', end: false }

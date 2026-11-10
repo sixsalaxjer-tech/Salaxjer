@@ -160,7 +160,7 @@ export function CreditCardsScreen() {
           <Button type="button" fullWidth onClick={() => startEdit()}>
             + เพิ่มบัตรเครดิต
           </Button>
-          <Link to="/settings/cards/import" className="btn btn--ghost btn--small">
+          <Link to="/cards/import" className="btn btn--ghost btn--small">
             📩 นำเข้าจากข้อความ LINE ›
           </Link>
         </>

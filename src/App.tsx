@@ -63,18 +63,11 @@ function Gate() {
             </SettingsSubScreen>
           }
         />
+        <Route path="/cards" element={<CreditCardsScreen />} />
         <Route
-          path="/settings/cards"
+          path="/cards/import"
           element={
-            <SettingsSubScreen title="บัตรเครดิต">
-              <CreditCardsScreen />
-            </SettingsSubScreen>
-          }
-        />
-        <Route
-          path="/settings/cards/import"
-          element={
-            <SettingsSubScreen title="นำเข้าจากข้อความ LINE">
+            <SettingsSubScreen title="นำเข้าจากข้อความ LINE" backTo="/cards">
               <ImportCardNotificationsScreen />
             </SettingsSubScreen>
           }

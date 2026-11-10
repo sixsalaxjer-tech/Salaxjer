@@ -25,7 +25,7 @@ Thai is the default UI language; code, identifiers, and documentation are in Eng
 - Backup & restore: JSON export/import, optional password encryption, Validate/Replace/Merge modes — FR-010
 - Credit cards (not in the original spec — added by request): register cards with statement/due
   day and limit, pick a card per expense, see outstanding balance, current-cycle spend and the
-  amount due, and record bill payments (Settings > บัตรเครดิต). Local + backup only — cards,
+  amount due, and record bill payments (the บัตร tab). Local + backup only — cards,
   payments and `Expense.creditCardId` are not yet synced to Supabase. Schema v3.
 - Offline indicator and per-record sync status badges — NFR-001, NFR-010
 - Local IndexedDB schema with a documented migration path — see [`docs/DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md)

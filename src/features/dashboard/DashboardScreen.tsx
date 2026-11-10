@@ -165,7 +165,7 @@ export function DashboardScreen() {
               </li>
             ))}
           </ul>
-          <Link to="/settings/cards" className="btn btn--ghost btn--small">
+          <Link to="/cards" className="btn btn--ghost btn--small">
             จัดการบัตรและบันทึกการชำระ ›
           </Link>
         </section>
