@@ -123,3 +123,54 @@ export function summarizeCard(
     available: card.creditLimit !== undefined ? round2(card.creditLimit - outstanding) : undefined
   }
 }
+
+export interface RangeSummary {
+  from: string
+  to: string
+  total: number
+  count: number
+  byCard: { creditCardId: string; total: number }[]
+  byCategory: { categoryId: string; total: number }[]
+  /** Matching charges, oldest first. */
+  items: Expense[]
+}
+
+/**
+ * Card spending between two dates (inclusive), optionally for a single card. The range may span
+ * any number of weeks/months/statement cycles; `from`/`to` are swapped if given the wrong way round.
+ */
+export function summarizeCardRange(
+  expenses: Expense[],
+  range: { from: string; to: string; creditCardId?: string }
+): RangeSummary {
+  const [from, to] = range.from <= range.to ? [range.from, range.to] : [range.to, range.from]
+  const items = expenses
+    .filter(
+      (e) =>
+        e.creditCardId &&
+        (!range.creditCardId || e.creditCardId === range.creditCardId) &&
+        isCardCharge(e, e.creditCardId) &&
+        e.expenseDate >= from &&
+        e.expenseDate <= to
+    )
+    .sort((a, b) => a.expenseDate.localeCompare(b.expenseDate))
+
+  const byCard = new Map<string, number>()
+  const byCategory = new Map<string, number>()
+  for (const e of items) {
+    byCard.set(e.creditCardId!, (byCard.get(e.creditCardId!) ?? 0) + e.amount)
+    byCategory.set(e.categoryId, (byCategory.get(e.categoryId) ?? 0) + e.amount)
+  }
+  const toList = <K extends string>(m: Map<string, number>, key: K) =>
+    [...m.entries()].map(([id, total]) => ({ [key]: id, total: round2(total) }) as { [P in K]: string } & { total: number })
+
+  return {
+    from,
+    to,
+    total: round2(items.reduce((s, e) => s + e.amount, 0)),
+    count: items.length,
+    byCard: toList(byCard, 'creditCardId'),
+    byCategory: toList(byCategory, 'categoryId'),
+    items
+  }
+}

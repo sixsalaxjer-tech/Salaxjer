@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getDueDate, getPreviousCycle, getStatementCycle, summarizeCard } from '@/domain/rules/creditCard'
+import { getDueDate, getPreviousCycle, getStatementCycle, summarizeCard, summarizeCardRange } from '@/domain/rules/creditCard'
 import type { CardPayment, CreditCard, Expense } from '@/domain/entities/types'
 
 const card: CreditCard = {
@@ -124,5 +124,38 @@ describe('payment method split', () => {
     expect(matchesMethod(cash, 'card')).toBe(false)
     expect(matchesMethod(cash, 'cash')).toBe(true)
     expect(matchesMethod(cash)).toBe(true)
+  })
+})
+
+describe('summarizeCardRange', () => {
+  const list = [
+    exp('2026-10-30', 100), // before range
+    exp('2026-11-01', 200),
+    exp('2026-11-09', 300, { categoryId: 'food' }), // spans weeks within the range
+    exp('2026-11-10', 400, { creditCardId: 'c2' }),
+    exp('2026-11-11', 999), // after range
+    exp('2026-11-05', 999, { status: 'voided' }),
+    exp('2026-11-05', 999, { expenseType: 'income' }),
+    exp('2026-11-05', 999, { creditCardId: undefined }) // cash
+  ]
+
+  it('sums card charges between two dates inclusive, across weeks and months', () => {
+    const s = summarizeCardRange(list, { from: '2026-11-01', to: '2026-11-10' })
+    expect(s.total).toBe(900)
+    expect(s.count).toBe(3)
+    expect(s.items.map((e) => e.expenseDate)).toEqual(['2026-11-01', '2026-11-09', '2026-11-10'])
+    expect(summarizeCardRange(list, { from: '2026-10-30', to: '2026-11-10' }).total).toBe(1000)
+  })
+
+  it('groups by card and category, and can filter to one card', () => {
+    const s = summarizeCardRange(list, { from: '2026-11-01', to: '2026-11-10' })
+    expect(s.byCard).toEqual(expect.arrayContaining([{ creditCardId: 'c1', total: 500 }, { creditCardId: 'c2', total: 400 }]))
+    expect(s.byCategory).toEqual(expect.arrayContaining([{ categoryId: 'food', total: 300 }, { categoryId: 'cat', total: 600 }]))
+    expect(summarizeCardRange(list, { from: '2026-11-01', to: '2026-11-10', creditCardId: 'c2' }).total).toBe(400)
+  })
+
+  it('swaps a reversed range', () => {
+    const s = summarizeCardRange(list, { from: '2026-11-10', to: '2026-11-01' })
+    expect([s.from, s.to, s.total]).toEqual(['2026-11-01', '2026-11-10', 900])
   })
 })

@@ -10,6 +10,7 @@ import {
   voidCardPayment
 } from '@/domain/services/creditCardService'
 import { useCardSummaries } from '@/features/cards/useCardSummaries'
+import { CardRangeSummary } from '@/features/cards/CardRangeSummary'
 import type { CardSummary } from '@/domain/rules/creditCard'
 import type { CardPayment, CreditCard } from '@/domain/entities/types'
 import { AppError } from '@/shared/types/errors'
@@ -168,6 +169,8 @@ export function CreditCardsScreen() {
           </Link>
         </>
       )}
+
+      {sorted.length > 0 && <CardRangeSummary cards={sorted.map((s) => s.card)} />}
 
       {sorted.length === 0 ? (
         <EmptyState icon="💳" title="ยังไม่มีบัตรเครดิต" description="เพิ่มบัตรเพื่อเลือกตอนบันทึกค่าใช้จ่าย และดูยอดค้างชำระ" />
